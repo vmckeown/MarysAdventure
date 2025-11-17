@@ -10,6 +10,7 @@ export const ENEMY_STATE = {
   PATROL: "patrol",
   CHASE: "chase",
   SEARCH: "search",
+  RETURN: "return",
   DEAD: "dead"
 };
 
@@ -30,6 +31,12 @@ export class Enemy {
     this.path = [];
     this.pathIndex = 0;
     this.pathTimer = 0;
+    this.lastSeen = null;
+    this.searchTimer = 0;
+    this.patrolStartX = this.x;
+    this.patrolStartY = this.y;
+    this.waypoints = [{x: 300, y: 400}, {x: 600, y: 200}]
+
   }
 
   update(dt, player, world, pathfinder) {
@@ -39,6 +46,7 @@ export class Enemy {
     const dy = player.y - this.y;
     const dist = Math.hypot(dx, dy);
 
+
     // Update facing direction
     this.direction = {
       x: dx / dist || 1,
@@ -47,7 +55,14 @@ export class Enemy {
 
     if (this.isPlayerInFOV(player) && this.hasLineOfSightToPlayer(player, world, pathfinder)) {
       this.state = ENEMY_STATE.CHASE;
+      this.lastSeen = { x: player.x, y: player.y };
     }
+
+    if (dist > this.visionRadius * 1.2 || !this.isPlayerInFOV(player)) {
+      this.state = ENEMY_STATE.SEARCH;
+      this.searchTimer = 3; // seconds to search
+    }
+
 
     switch (this.state) {
       case ENEMY_STATE.IDLE:
@@ -57,13 +72,18 @@ export class Enemy {
           this.targetY = this.y + (Math.random() - 0.5) * 200;
         }
         break;
-
-      case ENEMY_STATE.PATROL:
+     case ENEMY_STATE.PATROL:
+        if (!this.targetX || !this.targetY) {
+          this.targetX = this.x + (Math.random() - 0.5) * 100;
+          this.targetY = this.y + (Math.random() - 0.5) * 100;
+        }
         this.moveToward(this.targetX, this.targetY, dt);
-        if (Math.hypot(this.targetX - this.x, this.targetY - this.y) < 10)
+        if (Math.hypot(this.targetX - this.x, this.targetY - this.y) < 5) {
           this.state = ENEMY_STATE.IDLE;
+          this.targetX = null;
+          this.targetY = null;
+        }
         break;
-
       case ENEMY_STATE.CHASE:
         this.pathTimer -= dt;
         if (this.pathTimer <= 0) {
@@ -95,17 +115,33 @@ export class Enemy {
           this.searchTimer = 2;
         }
         break;
-
       case ENEMY_STATE.SEARCH:
-        this.searchTimer -= dt;
-        if (this.searchTimer <= 0) this.state = ENEMY_STATE.IDLE;
+        if (this.lastSeen) {
+          this.moveToward(this.lastSeen.x, this.lastSeen.y, dt);
+          const dx = this.lastSeen.x - this.x;
+          const dy = this.lastSeen.y - this.y;
+          const dist = Math.hypot(dx, dy);
+
+          if (dist < 10) this.searchTimer -= dt;
+          if (this.searchTimer <= 0) {
+            this.state = ENEMY_STATE.RETURN;
+            this.returnX = this.patrolStartX || this.x;
+            this.returnY = this.patrolStartY || this.y;
+          }
+        }
         break;
-    }
+      case ENEMY_STATE.RETURN:
+        this.moveToward(this.patrolStartX, this.patrolStartY, dt);
+        if (Math.hypot(this.patrolStartX - this.x, this.patrolStartY - this.y) < 10) {
+          this.state = ENEMY_STATE.PATROL;
+        }
+        break;
 
     if (this.health <= 0) {
       this.die();
     }
   }
+}
 
   moveToward(tx, ty, dt) {
     const dx = tx - this.x;
@@ -164,9 +200,13 @@ export class Enemy {
 
     // Body
     ctx.fillStyle =
-      this.state === ENEMY_STATE.CHASE ? "#ff5555" :
-      this.state === ENEMY_STATE.PATROL ? "#ffaa00" :
-      "#888888";
+      ctx.fillStyle =
+        this.state === ENEMY_STATE.CHASE ? "#ff5555" :
+        this.state === ENEMY_STATE.SEARCH ? "#dddd33" :
+        this.state === ENEMY_STATE.RETURN ? "#00ffff" :
+        this.state === ENEMY_STATE.PATROL ? "#ffaa00" :
+        "#888888";
+
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
     ctx.fill();

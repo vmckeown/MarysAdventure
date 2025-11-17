@@ -341,9 +341,6 @@ function render() {
     drawUI();
 }
 
-
-
-
 // ===== Draw Entities =====
 function drawEntities() {
     // NPCs
