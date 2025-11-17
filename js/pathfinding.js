@@ -118,7 +118,7 @@ function getNeighbors(tile) {
     return neighbors;
 }
 
-function isTileSolid(tx, ty) {
+export function isTileSolid(tx, ty) {
     const tile = getTile(tx, ty);
     return SOLID_TILES.includes(tile);
 }
@@ -211,5 +211,6 @@ function moveAlongPath(enemy, target, dt) {
         enemy.pathTimer = 1.5;
     }
 }
+
 
 

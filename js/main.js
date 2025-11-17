@@ -7,7 +7,7 @@
 
 // ===== Global Variables =====
 
-import { setupWorld, isColliding, TILE_SIZE, WORLD_COLS, WORLD_ROWS, BACKGROUND_COLOR, drawWorld, drawObjects} from './world.js';
+import { setupWorld, isColliding, TILE_SIZE, WORLD_COLS, WORLD_ROWS, BACKGROUND_COLOR, drawWorld, worldToTile, drawObjects} from './world.js';
 import { player } from './player.js';
 window.player = player;
 
@@ -15,6 +15,8 @@ import { Enemy, enemies, spawnEnemy, updateEnemies, ENEMY_STATE} from "./enemy.j
 import { NPC, setupNPCs } from "./npc.js";
 import { setupInput, keys, wasKeyPressed } from "./input.js";
 import { Graphics } from "./graphics.js";
+import { isTileSolid, findPath } from "./pathfinding.js";
+
 
 export const WIDTH = 800;
 export const HEIGHT = 600;
@@ -136,11 +138,12 @@ function gameLoop(timestamp) {
 
 // ===== Update =====
 function update(dt) {
+    const pathfinder = { isTileSolid };
     player.update(dt, keys, npcs, objects, ctx);
     handleAttack(dt);
     updateNPCs(dt);
     for (const e of enemies) {
-      e.update(dt, player);
+      e.update(dt, player, worldToTile, pathfinder);
     }
     updateXPOrbs(dt);
     updateCamera(dt);
