@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>BackStabbing Enterprises - Top Down RPG</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #111;
+      color: #f0f0f0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 0.75rem 1rem;
+      background: #1e1e1e;
+      border-bottom: 1px solid #333;
+      text-align: center;
+      font-size: 0.95rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    header span.brand {
+      font-weight: 600;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      box-sizing: border-box;
+    }
+
+    canvas {
+      background: #000;
+      border: 2px solid #444;
+      image-rendering: pixelated;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="brand">BackStabbing Enterprises</span> — founded by Jeff B and Vince M
+  </header>
+
+    <main>
+    <canvas id="gameCanvas" width="800" height="600">
+      Your browser does not support the HTML5 Canvas element.
+    </canvas>
+  </main>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
