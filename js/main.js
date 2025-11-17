@@ -59,7 +59,7 @@ let camera = {
 };
 
 // ===== Initialization =====
-window.addEventListener("load", init);
+
 
 function init() {
     canvas = document.getElementById("gameCanvas");
@@ -75,8 +75,6 @@ function init() {
     spawnEnemy(12, 12);
     spawnEnemy(18, 6);
     spawnEnemy(22, 12);
-    setupInput();
-
 
     requestAnimationFrame(gameLoop);
 }
@@ -168,8 +166,6 @@ function updateNPCs(dt) {
 // ===== Combat System =====
 function handleAttack(dt) {
     if (attackCooldown > 0) attackCooldown -= dt;
-
-    console.log("Attack")
 
     if ((keys[" "] || keys["Space"] || keys["Spacebar"]) && attackCooldown <= 0) {
         attackCooldown = ATTACK_COOLDOWN_TIME;
@@ -446,6 +442,11 @@ function drawUI() {
 
     // --- Dialogue Box (if active) ---
     if (activeDialogue) drawDialogueBox(activeDialogue);
+
+    // --- Enemy Counter ---
+    ctx.fillText(`Enemies: ${enemies.length}`, 420, y + 40);
+    
+
 
     ctx.restore();
 }

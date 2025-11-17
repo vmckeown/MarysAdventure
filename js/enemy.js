@@ -205,6 +205,7 @@ export class Enemy {
 export function spawnEnemy(tileX, tileY) {
   const enemy = new Enemy(tileX, tileY);
   enemies.push(enemy);
+  console.log(`Spawned enemy at (${tileX}, ${tileY}) - Total: ${enemies.length}`);
 }
 
 export function updateEnemies(dt, player, world, pathfinder) {
