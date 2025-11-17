@@ -35,7 +35,10 @@ export class Enemy {
     this.searchTimer = 0;
     this.patrolStartX = this.x;
     this.patrolStartY = this.y;
-    this.waypoints = [{x: 300, y: 400}, {x: 600, y: 200}]
+    this.waypoints = [];        // Array of {x, y} world positions
+    this.currentWaypoint = 0;   // Index tracker
+    this.patrolLoop = true;     // Optional loop toggle
+
 
   }
 
@@ -44,25 +47,23 @@ export class Enemy {
 
     const dx = player.x - this.x;
     const dy = player.y - this.y;
-    const dist = Math.hypot(dx, dy);
-
+    const playerDist = Math.hypot(dx, dy);
 
     // Update facing direction
     this.direction = {
-      x: dx / dist || 1,
-      y: dy / dist || 0,
+      x: dx / playerDist || 1,
+      y: dy / playerDist || 0,
     };
 
-    if (this.isPlayerInFOV(player) && this.hasLineOfSightToPlayer(player, world, pathfinder)) {
+    if (this.state !== ENEMY_STATE.CHASE && this.isPlayerInFOV(player) && this.hasLineOfSightToPlayer(player, world, pathfinder)) {
       this.state = ENEMY_STATE.CHASE;
       this.lastSeen = { x: player.x, y: player.y };
     }
 
-    if (dist > this.visionRadius * 1.2 || !this.isPlayerInFOV(player)) {
+    if (this.state === ENEMY_STATE.CHASE && (playerDist > this.visionRadius * 1.2 || !this.isPlayerInFOV(player))) {
       this.state = ENEMY_STATE.SEARCH;
-      this.searchTimer = 3; // seconds to search
+      this.searchTimer = 3;
     }
-
 
     switch (this.state) {
       case ENEMY_STATE.IDLE:
@@ -73,15 +74,34 @@ export class Enemy {
         }
         break;
      case ENEMY_STATE.PATROL:
-        if (!this.targetX || !this.targetY) {
-          this.targetX = this.x + (Math.random() - 0.5) * 100;
-          this.targetY = this.y + (Math.random() - 0.5) * 100;
+      if (this.waypoints.length === 0) {
+        this.state = ENEMY_STATE.IDLE;
+        console.log(`Patrolling: Enemy at (${this.x.toFixed(1)}, ${this.y.toFixed(1)}) moving to (${wp.x}, ${wp.y})`);
+        console.log(`Enemy at (${this.x.toFixed(1)}, ${this.y.toFixed(1)}) patrolling to (${wp.x}, ${wp.y})`);
+        break;
+      }
+
+      const wp = this.waypoints[this.currentWaypoint];
+      this.moveToward(wp.x, wp.y, dt);
+
+      const wpDist = Math.hypot(wp.x - this.x, wp.y - this.y);
+      if (wpDist < 5) {
+        this.currentWaypoint++;
+        if (this.currentWaypoint >= this.waypoints.length) {
+          this.currentWaypoint = this.patrolLoop ? 0 : this.waypoints.length - 1;
         }
-        this.moveToward(this.targetX, this.targetY, dt);
-        if (Math.hypot(this.targetX - this.x, this.targetY - this.y) < 5) {
-          this.state = ENEMY_STATE.IDLE;
-          this.targetX = null;
-          this.targetY = null;
+      }
+      break;
+
+        wp = this.waypoints[this.currentWaypoint];
+        this.moveToward(wp.x, wp.y, dt);
+
+        const dist = Math.hypot(wp.x - this.x, wp.y - this.y);
+        if (dist < 5) {
+          this.currentWaypoint++;
+          if (this.currentWaypoint >= this.waypoints.length) {
+            this.currentWaypoint = this.patrolLoop ? 0 : this.waypoints.length - 1;
+          }
         }
         break;
       case ENEMY_STATE.CHASE:
@@ -91,7 +111,7 @@ export class Enemy {
           const goal = worldToTile(player.x, player.y);
           this.path = findPath(start, goal);
           this.pathIndex = 0;
-          this.pathTimer = 1; // recalc every 1s
+          this.pathTimer = .3; 
         }
 
         if (this.path && this.path.length > 0 && this.pathIndex < this.path.length) {
@@ -110,7 +130,7 @@ export class Enemy {
           }
         }
 
-        if (dist > this.visionRange * 1.5) {
+        if (playerDist > this.visionRange * 1.5) {
           this.state = ENEMY_STATE.SEARCH;
           this.searchTimer = 2;
         }
@@ -142,6 +162,12 @@ export class Enemy {
     }
   }
 }
+
+  setWaypoints(waypoints) {
+    this.waypoints = waypoints;
+    this.currentWaypoint = 0;
+    console.log(`Waypoints set: ${waypoints.length} for enemy at (${this.x}, ${this.y})`);
+  }
 
   moveToward(tx, ty, dt) {
     const dx = tx - this.x;
@@ -222,7 +248,7 @@ export class Enemy {
     ctx.stroke();
     */
 
-    // Draw path (optional)
+    // Draw path 
     if (this.path && this.path.length > 0) {
       ctx.strokeStyle = "rgba(255,255,0,0.5)";
       ctx.beginPath();
@@ -231,6 +257,16 @@ export class Enemy {
         const wy = this.path[i].y * TILE_SIZE + TILE_SIZE / 2;
         if (i === 0) ctx.moveTo(wx, wy);
         else ctx.lineTo(wx, wy);
+      }
+      ctx.stroke();
+    }
+
+    if (this.waypoints.length > 1) {
+      ctx.strokeStyle = "rgba(0,255,255,0.4)";
+      ctx.beginPath();
+      ctx.moveTo(this.waypoints[0].x, this.waypoints[0].y);
+      for (let i = 1; i < this.waypoints.length; i++) {
+        ctx.lineTo(this.waypoints[i].x, this.waypoints[i].y);
       }
       ctx.stroke();
     }
@@ -246,6 +282,7 @@ export function spawnEnemy(tileX, tileY) {
   const enemy = new Enemy(tileX, tileY);
   enemies.push(enemy);
   console.log(`Spawned enemy at (${tileX}, ${tileY}) - Total: ${enemies.length}`);
+  return enemy;
 }
 
 export function updateEnemies(dt, player, world, pathfinder) {

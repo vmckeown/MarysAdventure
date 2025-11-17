@@ -71,10 +71,23 @@ function init() {
     //setupObjects();
     npcs = setupNPCs();
 
-    // New enemy system: spawn enemies via enemy.js
-    spawnEnemy(12, 12);
-    spawnEnemy(18, 6);
-    spawnEnemy(22, 12);
+    const e1 = spawnEnemy(9, 12);
+    e1.setWaypoints([
+    { x: 9 * TILE_SIZE, y: 12 * TILE_SIZE },
+    { x: 16 * TILE_SIZE, y: 12 * TILE_SIZE },
+    { x: 16 * TILE_SIZE, y: 16 * TILE_SIZE },
+    ]);
+
+    const e2 = spawnEnemy(22, 12);
+    e2.setWaypoints([
+    { x: 18 * TILE_SIZE, y: 6 * TILE_SIZE },
+    { x: 22 * TILE_SIZE, y: 18 * TILE_SIZE },
+    ]);
+    const e3 = spawnEnemy(16,3);
+    e3.setWaypoints([
+    { x: 16 * TILE_SIZE, y: 12 * TILE_SIZE },
+    { x: 22 * TILE_SIZE, y: 18 * TILE_SIZE },
+    ]);
 
     requestAnimationFrame(gameLoop);
 }
