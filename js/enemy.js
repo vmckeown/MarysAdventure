@@ -82,7 +82,36 @@ export class Enemy {
       }
 
       const wp = this.waypoints[this.currentWaypoint];
-      this.moveToward(wp.x, wp.y, dt);
+      if (!this.path || this.path.length === 0 || this.pathIndex >= this.path.length) {
+        const start = worldToTile(this.x, this.y);
+        const goal = worldToTile(wp.x, wp.y);
+        this.path = findPath(start, goal);
+        this.pathIndex = 0;
+      }
+
+      if (this.path && this.path.length > 0 && this.pathIndex < this.path.length) {
+        const next = this.path[this.pathIndex];
+        const wx = next.x * TILE_SIZE + TILE_SIZE / 2;
+        const wy = next.y * TILE_SIZE + TILE_SIZE / 2;
+        const dx = wx - this.x;
+        const dy = wy - this.y;
+        const distToNext = Math.hypot(dx, dy);
+
+        if (distToNext > 2) {
+          this.x += (dx / distToNext) * this.speed * dt;
+          this.y += (dy / distToNext) * this.speed * dt;
+        } else {
+          this.pathIndex++;
+        }
+
+        // If reached final path node (i.e., waypoint)
+        if (this.pathIndex >= this.path.length) {
+          this.currentWaypoint++;
+          if (this.currentWaypoint >= this.waypoints.length) {
+            this.currentWaypoint = this.patrolLoop ? 0 : this.waypoints.length - 1;
+          }
+        }
+      }
 
       const wpDist = Math.hypot(wp.x - this.x, wp.y - this.y);
       if (wpDist < 5) {
