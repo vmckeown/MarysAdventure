@@ -16,7 +16,8 @@ import { NPC, setupNPCs } from "./npc.js";
 import { setupInput, keys, wasKeyPressed } from "./input.js";
 import { Graphics } from "./graphics.js";
 import { isTileSolid, findPath } from "./pathfinding.js";
-
+import { updateParticles, drawParticles } from "./particles.js";
+import { updateDamageNumbers, drawDamageNumbers } from "./damageNumbers.js";
 
 export const WIDTH = 800;
 export const HEIGHT = 600;
@@ -157,6 +158,8 @@ function update(dt) {
       e.update(dt, player, worldToTile, pathfinder);
     }
     updateXPOrbs(dt);
+    updateParticles(dt);
+    updateDamageNumbers(dt);
     updateCamera(dt);
     //handleInteractions();
 }
@@ -349,6 +352,10 @@ function render() {
             ctx.stroke();
         }
     }
+
+    drawParticles(ctx);
+    drawDamageNumbers(ctx);
+
 
     ctx.restore();
     drawUI();

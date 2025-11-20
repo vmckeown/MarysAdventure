@@ -2,6 +2,8 @@ import { isColliding, TILE_SIZE} from "./world.js";
 import { keys, wasKeyPressed } from "./input.js";
 import { Graphics } from "./graphics.js";
 import { enemies } from "./enemy.js";
+import { particles, Particle, SlashParticle} from "./particles.js";
+import { spawnDamageNumber } from "./damageNumbers.js";
 
 function handleInteractions() {
     if (wasKeyPressed("e")) {
@@ -63,13 +65,19 @@ export class Player {
         this.knockbackY = 0;
         this.knockbackTimer = 0;
 
+        // Attack
+        this.attackCooldown = 0;
+        this.attackRange = 40;
+        this.attackAngle = Math.PI / 4; // 45 degrees
+        this.attackDamage = 1;
+
         // Player progression 
         this.level = 1;
         this.xp = 0;
         this.xpToNext = 100;
         this.levelUpTimer = 0; // tracks level-up flash duration
 
-        // === Cooldowns ===
+        // Cooldowns 
         this.cooldowns = {
             dash: 0,
             echoSense: 0,
@@ -169,6 +177,7 @@ export class Player {
 
     update(dt, keys, npcs, objects, ctx) {
         if (this.invulnTimer > 0) this.invulnTimer -= dt;
+        if (this.attackCooldown > 0) this.attackCooldown -= dt;
 
         // Movement
         // Determine facing only (movement happens in handleMovement)
@@ -176,6 +185,7 @@ export class Player {
         if (keys["s"] || keys["ArrowDown"]) this.facing = "down";
         if (keys["a"] || keys["ArrowLeft"]) this.facing = "left";
         if (keys["d"] || keys["ArrowRight"]) this.facing = "right";
+        if (wasKeyPressed(" ")) this.attack();
 
         if (this.knockbackTimer > 0) {
             this.applyKnockback(dt);
@@ -188,7 +198,7 @@ export class Player {
             this.levelUpTimer -= dt;
         }
 
-        // === Ability Input Handling ===
+        //  Ability Input Handling
         if (keys["Shift"]) this.useDash(ctx);
         if (wasKeyPressed("e")) this.useEchoSense(ctx);
         if (wasKeyPressed("f")) this.useSpiritPulse(ctx);
@@ -209,7 +219,7 @@ export class Player {
 
         }
 
-        // === Regeneration Logic ===
+        //  Regeneration Logic
         this.regenTimer += dt;
 
         if (this.regenTimer > this.regenDelay) {
@@ -224,6 +234,49 @@ export class Player {
             }
         }
 
+    }
+
+    attack() {
+        if (this.attackCooldown > 0) return;
+        this.attackCooldown = 0.5;
+
+        const attackDir = {
+            up: [0, -1],
+            down: [0, 1],
+            left: [-1, 0],
+            right: [1, 0]
+        }[this.facing];
+
+        for (const enemy of enemies) {
+            const dx = enemy.x - this.x;
+            const dy = enemy.y - this.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist > this.attackRange) continue;
+
+            const dot = (dx * attackDir[0] + dy * attackDir[1]) / dist;
+            if (dot < Math.cos(this.attackAngle)) continue;
+
+            enemy.damage?.(this.attackDamage, this.x, this.y);
+            spawnDamageNumber(enemy.x, enemy.y, this.attackDamage)
+            console.log("Enemy hit!");
+            for (let i = 0; i < 8; i++) {
+                const angle = Math.random() * 2 * Math.PI;
+                const speed = 50 + Math.random() * 100;
+                const vx = Math.cos(angle) * speed;
+                const vy = Math.sin(angle) * speed;
+                particles.push(new Particle(enemy.x, enemy.y, vx, vy, 0.3, "rgba(255,50,50,ALPHA)", 2));
+            }
+
+            const angleMap = {
+                up: -Math.PI / 2,
+                down: Math.PI / 2,
+                left: Math.PI,
+                right: 0
+            };
+
+            const angle = angleMap[this.facing];
+            particles.push(new SlashParticle(this.x, this.y, angle, "rgba(255,255,255,ALPHA)", 0.15));
+        }
     }
 
     gainXP(amount) {
@@ -301,6 +354,7 @@ export class Player {
 
     damage(amount, sourceX = null, sourceY = null) {
         if (this.invulnTimer > 0 || this.health <= 0) return;
+        if(!this.alive) return;
 
         this.health -= amount;
         this.invulnTimer = 1.0;
@@ -314,6 +368,8 @@ export class Player {
             this.knockbackY = (dy / len) * 200;
             this.knockbackTimer = 0.2;
         }
+
+        spawnDamageNumber(this.x, this.y - 20, amount, "#ff4444");
 
         if (this.health <= 0) {
             console.log("☠️ Player defeated!");
@@ -367,6 +423,25 @@ export class Player {
             ctx.arc(this.x, this.y, radius, 0, Math.PI * 2);
             ctx.fill();
             ctx.restore();
+        }
+
+        if (this.attackCooldown > 0.4) { // Show arc briefly after attacking
+            const angleMap = {
+                up: -Math.PI / 2,
+                down: Math.PI / 2,
+                left: Math.PI,
+                right: 0
+            };
+            const attackAngle = angleMap[this.facing];
+            const arcStart = attackAngle - this.attackAngle;
+            const arcEnd = attackAngle + this.attackAngle;
+
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.arc(this.x, this.y, this.attackRange, arcStart, arcEnd);
+            ctx.closePath();
+            ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+            ctx.fill();
         }
     }
 }

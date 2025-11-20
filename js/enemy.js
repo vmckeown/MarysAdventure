@@ -1,16 +1,9 @@
-import {
-    TILE_SIZE
-} from "./world.js";
-import {
-    player
-} from "./player.js";
-import {
-    findPath,
-    isTileSolid
-} from "./pathfinding.js";
-import {
-    worldToTile
-} from "./world.js";
+import {TILE_SIZE} from "./world.js";
+import {player} from "./player.js";
+import {findPath,isTileSolid} from "./pathfinding.js";
+import {worldToTile} from "./world.js";
+import {spawnDamageNumber } from "./damageNumbers.js";
+
 
 export const enemies = [];
 
@@ -388,9 +381,20 @@ export class Enemy {
         }
     }
 
+
     damage(amount) {
+        if (!this.alive) return;
+
         this.health -= amount;
+
+        // Show floating damage number ABOVE the enemy
+        spawnDamageNumber(this.x, this.y - 20, amount, "#ff4444");
+
+        if (this.health <= 0) {
+            this.die();
+        }
     }
+
 }
 
 // Enemy Manager
@@ -408,3 +412,5 @@ export function updateEnemies(dt, player, world, pathfinder) {
 export function drawEnemies(ctx) {
     for (const e of enemies) e.draw(ctx);
 }
+
+
