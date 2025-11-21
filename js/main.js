@@ -7,7 +7,7 @@
 
 // ===== Global Variables =====
 
-import { setupWorld, isColliding, TILE_SIZE, WORLD_COLS, WORLD_ROWS, BACKGROUND_COLOR, drawWorld, worldToTile, drawObjects} from './world.js';
+import { isColliding, TILE_SIZE, WORLD_COLS, WORLD_ROWS, BACKGROUND_COLOR, drawWorld, worldToTile} from './world.js';
 import { player } from './player.js';
 window.player = player;
 
@@ -67,27 +67,27 @@ function init() {
     ctx = canvas.getContext("2d");
 
     setupInput();
-    setupWorld();
+    //setupWorld();
 
     //setupObjects();
     npcs = setupNPCs();
 
-    const e1 = spawnEnemy(9, 12);
+    const e1 = spawnEnemy(9, 11);
     e1.setWaypoints([
-    { x: 9 * TILE_SIZE, y: 12 * TILE_SIZE },
-    { x: 16 * TILE_SIZE, y: 12 * TILE_SIZE },
+    { x: 9 * TILE_SIZE, y: 11 * TILE_SIZE },
+    { x: 16 * TILE_SIZE, y: 11 * TILE_SIZE },
     { x: 16 * TILE_SIZE, y: 16 * TILE_SIZE },
     ]);
 
-    const e2 = spawnEnemy(22, 12);
+    const e2 = spawnEnemy(10, 12);
     e2.setWaypoints([
     { x: 18 * TILE_SIZE, y: 6 * TILE_SIZE },
     { x: 22 * TILE_SIZE, y: 18 * TILE_SIZE },
     ]);
-    const e3 = spawnEnemy(16,3);
+    const e3 = spawnEnemy(15,3);
     e3.setWaypoints([
-    { x: 16 * TILE_SIZE, y: 12 * TILE_SIZE },
-    { x: 22 * TILE_SIZE, y: 18 * TILE_SIZE },
+    { x: 9 * TILE_SIZE, y: 2 * TILE_SIZE },
+    { x: 10 * TILE_SIZE, y: 9 * TILE_SIZE },
     ]);
 
     requestAnimationFrame(gameLoop);

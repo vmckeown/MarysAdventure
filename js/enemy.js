@@ -346,17 +346,6 @@ export class Enemy {
         ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
         ctx.fill();
 
-        // Optional: Draw vision cone (debug)
-        /*
-        const angle = Math.atan2(this.direction.y, this.direction.x);
-        ctx.strokeStyle = "rgba(255,255,255,0.3)";
-        ctx.beginPath();
-        ctx.moveTo(this.x, this.y);
-        ctx.arc(this.x, this.y, this.visionRadius, angle - this.visionAngle / 2, angle + this.visionAngle / 2);
-        ctx.closePath();
-        ctx.stroke();
-        */
-
         // Draw path 
         if (this.path && this.path.length > 0) {
             ctx.strokeStyle = "rgba(255,255,0,0.5)";
@@ -381,7 +370,6 @@ export class Enemy {
         }
     }
 
-
     damage(amount) {
         if (!this.alive) return;
 
@@ -394,7 +382,6 @@ export class Enemy {
             this.die();
         }
     }
-
 }
 
 // Enemy Manager

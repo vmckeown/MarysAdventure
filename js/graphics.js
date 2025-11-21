@@ -27,4 +27,15 @@ export const Graphics = {
         ctx.fillStyle = color;
         ctx.fill();
     },
+     drawTile: (ctx, image, tileX, tileY, tileSize, x, y) => {
+        ctx.drawImage(
+            image,
+            tileX * tileSize, tileY * tileSize,
+            tileSize, tileSize,
+            x, y,
+            tileSize, tileSize
+        );
+    }
 };
+
+
