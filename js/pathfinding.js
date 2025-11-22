@@ -4,7 +4,7 @@ import { getTile, TILE_SIZE, SOLID_TILES, WORLD_COLS,  WORLD_ROWS } from "./worl
 export function findPath(start, goal) {
     // Prevent running if start or goal are invalid
     if (isTileSolid(start.x, start.y) || isTileSolid(goal.x, goal.y)) {
-        console.warn("Invalid start or goal tile:", start, goal);
+    //    console.warn("Invalid start or goal tile:", start, goal);
         return [];
     }
 

@@ -168,15 +168,7 @@ function update(dt) {
 // ===== NPC Idle Movement =====
 function updateNPCs(dt) {
     for (const npc of npcs) {
-        npc.idleTimer += dt;
-        if (npc.idleTimer > 2) {
-            npc.dir *= -1;
-            npc.idleTimer = 0;
-        }
-
-        const nextY = npc.y + npc.dir * npc.speed * dt;
-        // ✅ isColliding expects (x, y)
-        if (!isColliding(npc.x, nextY, 32, npcs, objects)) npc.y = nextY;
+        npc.update(dt); 
     }
 }
 
@@ -366,7 +358,7 @@ function render() {
 function drawEntities() {
     // NPCs
     for (const npc of npcs) {
-        Graphics.circle(ctx, npc.x, npc.y, npc.size / 2, npc.color);
+        npc.draw(ctx);
     }
 
     // Enemies (each Enemy has its own draw)
