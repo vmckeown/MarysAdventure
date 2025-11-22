@@ -7,7 +7,7 @@
 
 // ===== Global Variables =====
 
-import { isColliding, TILE_SIZE, WORLD_COLS, WORLD_ROWS, BACKGROUND_COLOR, drawWorld, worldToTile} from './world.js';
+import { updateWorldAnimation, isColliding, TILE_SIZE, WORLD_COLS, WORLD_ROWS, BACKGROUND_COLOR, drawWorld, worldToTile} from './world.js';
 import { player } from './player.js';
 window.player = player;
 
@@ -150,6 +150,7 @@ function gameLoop(timestamp) {
 
 // ===== Update =====
 function update(dt) {
+    updateWorldAnimation(dt);
     const pathfinder = { isTileSolid };
     player.update(dt, keys, npcs, objects, ctx);
     handleAttack(dt);
