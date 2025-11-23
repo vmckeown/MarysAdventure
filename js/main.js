@@ -167,10 +167,13 @@ function update(dt) {
 
 // ===== NPC Idle Movement =====
 function updateNPCs(dt) {
+    const pathfinder = { isTileSolid }; // Add this line
+
     for (const npc of npcs) {
-        npc.update(dt); 
+        npc.update(dt, player, worldToTile, pathfinder);
     }
 }
+
 
 // ===== Combat System =====
 function handleAttack(dt) {

@@ -5,6 +5,10 @@ import { enemies } from "./enemy.js";
 import { particles, Particle, SlashParticle} from "./particles.js";
 import { spawnDamageNumber } from "./damageNumbers.js";
 
+const playerImage = new Image();
+playerImage.src = "./pics/Mary.png"; 
+
+
 function handleInteractions() {
     if (wasKeyPressed("e")) {
         if (!activeDialogue) {
@@ -377,43 +381,33 @@ export class Player {
     }
 
     draw(ctx) {
-        Graphics.square(
-            ctx,
-            this.x - this.size / 2,
-            this.y - this.size / 2,
-            this.size,
-            this.color
+        const frameSize = 32;
+        let frameX = 0;
+        let frameY = 0;
+
+        switch (this.facing) {
+            case "up": frameY = 0; break;
+            case "left": frameY = 1; break;
+            case "down": frameY = 2; break;
+            case "right": frameY = 3; break;
+        }
+
+        if (!playerImage.complete) return;
+
+        ctx.drawImage(
+            playerImage,
+            frameX * frameSize, frameY * frameSize,
+            frameSize, frameSize,
+            this.x - frameSize / 2, this.y - frameSize / 2,
+            frameSize, frameSize
         );
 
-        // Debug: show direction as a line
-        const lineLen = 15;
-        ctx.strokeStyle = "white";
-        ctx.beginPath();
-        switch (this.facing) {
-            case "up":
-                ctx.moveTo(this.x, this.y);
-                ctx.lineTo(this.x, this.y - lineLen);
-                break;
-            case "down":
-                ctx.moveTo(this.x, this.y);
-                ctx.lineTo(this.x, this.y + lineLen);
-                break;
-            case "left":
-                ctx.moveTo(this.x, this.y);
-                ctx.lineTo(this.x - lineLen, this.y);
-                break;
-            case "right":
-                ctx.moveTo(this.x, this.y);
-                ctx.lineTo(this.x + lineLen, this.y);
-                break;
-        }
-        ctx.stroke();
-
+        // Keep level-up effect and attack arc overlay (optional)
         if (this.levelUpTimer > 0) {
-            const alpha = Math.min(this.levelUpTimer, 1); // fade out
+            const alpha = Math.min(this.levelUpTimer, 1);
             ctx.save();
             ctx.globalAlpha = alpha;
-            const radius = this.size * (1.5 + (1 - alpha)); // expanding circle
+            const radius = this.size * (1.5 + (1 - alpha));
             const gradient = ctx.createRadialGradient(this.x, this.y, this.size / 2, this.x, this.y, radius);
             gradient.addColorStop(0, "rgba(255, 255, 150, 0.8)");
             gradient.addColorStop(0.5, "rgba(255, 255, 100, 0.4)");
@@ -425,7 +419,7 @@ export class Player {
             ctx.restore();
         }
 
-        if (this.attackCooldown > 0.4) { // Show arc briefly after attacking
+        if (this.attackCooldown > 0.4) {
             const angleMap = {
                 up: -Math.PI / 2,
                 down: Math.PI / 2,

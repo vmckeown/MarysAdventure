@@ -1,4 +1,6 @@
 import { Graphics } from "./graphics.js";
+import {worldToTile} from "./world.js";
+import {findPath} from "./pathfinding.js";
 const npcImage = new Image();
 npcImage.src = "./pics/NPCs.png";
 
@@ -7,28 +9,53 @@ export class NPC {
     Object.assign(this, { x, y, size, color, name, dialogue, speed, dir, idleTimer });
     this.facing = "south";
     this.nextIdleTime = 2 + Math.random() * 6;
+
+    this.bounds = { xMin: x - 64, xMax: x + 64, yMin: y - 64, yMax: y + 64 }; // 4x tile range
+    this.path = [];
+    this.pathIndex = 0;
   }
 
-  update(dt) {
+  update(dt, pathfinder) {
     this.idleTimer += dt;
-    if (this.idleTimer > this.nextIdleTime) {
-      const directions = ["up", "down", "left", "right"];
-      this.facing = directions[Math.floor(Math.random() * directions.length)];
-      this.dir = {
-        up: -1,
-        down: 1,
-        left: -1,
-        right: 1
-      }[this.facing];
+    if (this.idleTimer > this.nextIdleTime || this.path.length === 0) {
+      const destX = Math.floor(this.bounds.xMin + Math.random() * (this.bounds.xMax - this.bounds.xMin));
+      const destY = Math.floor(this.bounds.yMin + Math.random() * (this.bounds.yMax - this.bounds.yMin));
+      const start = worldToTile(this.x, this.y);
+      const goal = worldToTile(destX, destY);
+      this.path = findPath(start, goal);
+      this.pathIndex = 0;
       this.idleTimer = 0;
-      this.nextIdleTime = 2 + Math.random() * 6; // Random between 2 and 8
+      this.nextIdleTime = 2 + Math.random() * 6;
     }
 
-    // Move according to direction
-    if (this.facing === "up" || this.facing === "down") {
-      this.y += this.dir * this.speed * dt;
+    this.followPath(dt);
+  }
+
+  followPath(dt) {
+    if (this.path.length === 0 || this.pathIndex >= this.path.length) return;
+
+    const TILE_SIZE = 32;
+    const next = this.path[this.pathIndex];
+    const targetX = next.x * TILE_SIZE + TILE_SIZE / 2;
+    const targetY = next.y * TILE_SIZE + TILE_SIZE / 2;
+
+    const dx = targetX - this.x;
+    const dy = targetY - this.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist < 2) {
+      this.pathIndex++;
     } else {
-      this.x += this.dir * this.speed * dt;
+      const move = Math.min(this.speed * dt, dist);
+      this.x += (dx / dist) * move;
+      this.y += (dy / dist) * move;
+
+      // Update facing direction
+      if (Math.abs(dx) > Math.abs(dy)) {
+        this.facing = dx > 0 ? "right" : "left";
+      } else {
+        this.facing = dy > 0 ? "down" : "up";
+      }
     }
   }
 
