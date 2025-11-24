@@ -8,7 +8,7 @@
 // ===== Global Variables =====
 
 import { updateWorldAnimation, isColliding, TILE_SIZE, WORLD_COLS, WORLD_ROWS, BACKGROUND_COLOR, drawWorld, worldToTile} from './world.js';
-import { player } from './player.js';
+import { player, spiritDarts } from './player.js';
 window.player = player;
 
 import { Enemy, enemies, spawnEnemy, updateEnemies, ENEMY_STATE} from "./enemy.js";
@@ -160,6 +160,13 @@ function update(dt) {
     }
     updateXPOrbs(dt);
     updateParticles(dt);
+    for (const dart of spiritDarts) dart.update(dt);
+
+    // Clean up dead darts
+    for (let i = spiritDarts.length - 1; i >= 0; i--) {
+        if (!spiritDarts[i].alive) spiritDarts.splice(i, 1);
+    }
+
     updateDamageNumbers(dt);
     updateCamera(dt);
     //handleInteractions();
@@ -350,8 +357,8 @@ function render() {
     }
 
     drawParticles(ctx);
+    for (const dart of spiritDarts) dart.draw(ctx);
     drawDamageNumbers(ctx);
-
 
     ctx.restore();
     drawUI();
