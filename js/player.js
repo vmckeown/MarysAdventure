@@ -41,6 +41,9 @@ class SpiritDart {
         this.spawnFrames = [0, 1];       // spawn
         this.hitFrames = [6, 7];         // burst
         this.mode = "spawn";
+
+        this.frameWidth = 32;
+        this.frameHeight = 33;
     }
 
     update(dt) {
@@ -102,12 +105,12 @@ class SpiritDart {
 
         ctx.drawImage(
             playerImage,
-            sx, sy,
-            this.frameSize, this.frameSize,
-            this.x - this.frameSize / 2,
-            this.y - this.frameSize / 2,
-            this.frameSize, this.frameSize
+            this.frame * frameWidth, frameY * frameHeight,
+            frameWidth, frameHeight,
+            this.x - frameWidth / 2, this.y - frameHeight / 2,
+            frameWidth, frameHeight
         );
+
     }
 }
 
@@ -159,6 +162,19 @@ export class Player {
             echoSense: 0,
             spiritPulse: 0
         };
+
+        this.frame = 0;
+        this.frameTimer = 0;
+        this.frameInterval = 0.1; 
+        this.animating = false;
+        this.isMoving = false;
+        this.frameWidth = 32;
+        this.frameHeight = 33;
+
+        this.potions = 3;        
+        this.potionHeal = 2;     
+        this.potionCooldown = 0; 
+        this.potionCooldownTime = 1.5;
     }
 
     // ======================================================
@@ -232,17 +248,40 @@ export class Player {
     }
 
     // ======================================================
+    // POTION
+    // ======================================================
+
+    usePotion() {
+        if (this.potionCooldown > 0) return false;
+        if (this.potions <= 0) return false;
+        if (this.health >= this.maxHealth) return false;
+
+        this.potions--;
+        this.potionCooldown = this.potionCooldownTime;
+
+        this.health = Math.min(this.maxHealth, this.health + this.potionHeal);
+
+        // particle effect still okay here
+        particles.push(
+            new Particle(this.x, this.y - 20, 0, -30, 0.5, "rgba(100,255,100,ALPHA)", 4)
+        );
+
+        return true; // Inform the game we used a potion
+    }
+
+    // ======================================================
     // UPDATE
     // ======================================================
     update(dt, keys, npcs, objects, ctx) {
+        this.isMoving = false;
         if (this.invulnTimer > 0) this.invulnTimer -= dt;
         if (this.attackCooldown > 0) this.attackCooldown -= dt;
 
         // Movement facing
-        if (keys["w"] || keys["ArrowUp"]) this.facing = "up";
-        if (keys["s"] || keys["ArrowDown"]) this.facing = "down";
-        if (keys["a"] || keys["ArrowLeft"]) this.facing = "left";
-        if (keys["d"] || keys["ArrowRight"]) this.facing = "right";
+        if (keys["w"] || keys["ArrowUp"]) this.facing = "up", this.isMoving = true;
+        if (keys["s"] || keys["ArrowDown"]) this.facing = "down", this.isMoving = true;
+        if (keys["a"] || keys["ArrowLeft"]) this.facing = "left", this.isMoving = true;
+        if (keys["d"] || keys["ArrowRight"]) this.facing = "right", this.isMoving = true;
 
         if (wasKeyPressed(" ")) this.attack();
 
@@ -257,7 +296,7 @@ export class Player {
 
         // ABILITIES
         if (keys["Shift"]) this.useDash(ctx);
-        if (wasKeyPressed("e")) this.useEchoSense(ctx);
+      //  if (wasKeyPressed("e")) this.useEchoSense(ctx);
         if (wasKeyPressed("f")) this.useSpiritPulse(ctx);
 
         // Regeneration logic
@@ -277,6 +316,10 @@ export class Player {
             this.x += this.dashVelocity.x * dt;
             this.y += this.dashVelocity.y * dt;
             this.dashTimer -= dt;
+        }
+
+        if (this.potionCooldown > 0) {
+            this.potionCooldown -= dt;
         }
     }
 
@@ -377,7 +420,7 @@ export class Player {
     // ======================================================
     // DRAW PLAYER
     // ======================================================
-    draw(ctx) {
+    draw(ctx, dt) {
         const frameSize = 32;
         let frameX = 0;
         let frameY = 0;
@@ -389,12 +432,24 @@ export class Player {
 
         if (!playerImage.complete) return;
 
+        if (this.isMoving) {
+            this.animating = true;
+            this.frameTimer += dt;
+            if (this.frameTimer > this.frameInterval) {
+                this.frame = (this.frame + 1) % 8; // 8 walking frames
+                this.frameTimer = 0;
+            }
+        } else {
+            this.animating = false;
+            this.frame = 0; // idle frame
+        }
+
         ctx.drawImage(
             playerImage,
-            frameX * frameSize, frameY * frameSize,
-            frameSize, frameSize,
-            this.x - frameSize / 2, this.y - frameSize / 2,
-            frameSize, frameSize
+            this.frame * this.frameWidth, frameY * this.frameHeight,
+            this.frameWidth, this.frameHeight,
+            this.x - this.frameWidth / 2, this.y - this.frameHeight / 2,
+            this.frameWidth, this.frameHeight
         );
     }
 }

@@ -143,7 +143,7 @@ function gameLoop(timestamp) {
     lastTime = timestamp;
 
     update(deltaTime);
-    render();
+    render(deltaTime);
 
     requestAnimationFrame(gameLoop);
 }
@@ -153,6 +153,16 @@ function update(dt) {
     updateWorldAnimation(dt);
     const pathfinder = { isTileSolid };
     player.update(dt, keys, npcs, objects, ctx);
+    if (wasKeyPressed("q")) {
+        if (player.usePotion()) {
+            effects.push({
+                type: "healFlash",
+                x: player.x,
+                y: player.y,
+                timer: 0.4
+            });
+        }
+    }
     handleAttack(dt);
     updateNPCs(dt);
     for (const e of enemies) {
@@ -257,7 +267,7 @@ let previousKeys = {};
 
 
 // ===== Render =====
-function render() {
+function render(dt) {
     ctx.fillStyle = BACKGROUND_COLOR;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
@@ -266,7 +276,7 @@ function render() {
 
     drawWorld(ctx, camera);
     //drawObjects(ctx, camera, objects);
-    drawEntities();
+    drawEntities(deltaTime);
     drawEffects();
 
     // ===== DEBUG: Draw Enemy Paths =====
@@ -365,7 +375,7 @@ function render() {
 }
 
 // ===== Draw Entities =====
-function drawEntities() {
+function drawEntities(deltaTime) {
     // NPCs
     for (const npc of npcs) {
         npc.draw(ctx);
@@ -378,7 +388,7 @@ function drawEntities() {
     }
 
     // Player
-    player.draw(ctx);
+    player.draw(ctx, deltaTime);
 
     // Attack range indicator (debug)
     if (attackCooldown <= 0.05) {
@@ -405,6 +415,15 @@ function drawEffects() {
             ctx.beginPath();
             ctx.arc(fx.x, fx.y, 20 * (1 - alpha), 0, Math.PI * 2);
             ctx.strokeStyle = `rgba(0, 255, 255, ${alpha})`;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            fx.timer -= deltaTime;
+        }
+        if (fx.type === "healFlash") {
+            const alpha = fx.timer / 0.4;
+            ctx.beginPath();
+            ctx.arc(fx.x, fx.y, 25 * (1 - alpha), 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(0,255,0,${alpha})`;
             ctx.lineWidth = 3;
             ctx.stroke();
             fx.timer -= deltaTime;
@@ -463,11 +482,8 @@ function drawUI() {
     // --- Dialogue Box (if active) ---
     if (activeDialogue) drawDialogueBox(activeDialogue);
 
-    // --- Enemy Counter ---
-    ctx.fillText(`Enemies: ${enemies.length}`, 420, y + 40);
+    ctx.fillText(`Potions: ${player.potions}`, 20, 165);
     
-
-
     ctx.restore();
 }
 
