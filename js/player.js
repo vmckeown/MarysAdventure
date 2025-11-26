@@ -100,17 +100,22 @@ class SpiritDart {
     }
 
     draw(ctx) {
-        const sx = this.frame * this.frameSize;
-        const sy = this.rowIndex * this.frameSize;
+
+        const frameWidth = this.frameWidth;
+        const frameHeight = this.frameHeight;
+
+        const sx = this.frame * frameWidth;
+        const sy = this.rowIndex * frameHeight;
 
         ctx.drawImage(
             playerImage,
-            this.frame * frameWidth, frameY * frameHeight,
+            sx, sy,
             frameWidth, frameHeight,
-            this.x - frameWidth / 2, this.y - frameHeight / 2,
-            frameWidth, frameHeight
+            this.x - frameWidth / 2,
+            this.y - frameHeight / 2,
+            frameWidth,
+            frameHeight
         );
-
     }
 }
 
@@ -162,6 +167,13 @@ export class Player {
             echoSense: 0,
             spiritPulse: 0
         };
+
+        this.fireSlashTimer = 0;  // time left for empowered slash
+
+        this.cooldowns.frostPulse = 0;
+        this.frostPulseActive = 0;   // visual timer for the frost ring
+
+
 
         this.frame = 0;
         this.frameTimer = 0;
@@ -229,8 +241,8 @@ export class Player {
         this.cooldowns.dash = 1.5;
         this.stamina -= 15;
         this.regenTimer = 0;
-
-        const dashSpeed = 400;
+        console.log("DASH")
+        const dashSpeed = 450;
         let dx = 0, dy = 0;
 
         if (this.facing === "up") dy = -1;
@@ -245,6 +257,18 @@ export class Player {
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
         ctx.fill();
+
+        particles.push(
+            new Particle(
+                this.x,
+                this.y,
+                (Math.random() - 0.5) * 200,
+                (Math.random() - 0.5) * 200,
+                0.2,
+                "rgba(255,255,255,ALPHA)",
+                6
+            )
+        );  
     }
 
     // ======================================================
@@ -298,6 +322,8 @@ export class Player {
         if (keys["Shift"]) this.useDash(ctx);
       //  if (wasKeyPressed("e")) this.useEchoSense(ctx);
         if (wasKeyPressed("f")) this.useSpiritPulse(ctx);
+        if (wasKeyPressed("g")) this.useFireSlash();
+        if (wasKeyPressed("r")) this.useFrostPulse();
 
         // Regeneration logic
         this.regenTimer += dt;
@@ -311,21 +337,72 @@ export class Player {
             if (this.cooldowns[k] > 0) this.cooldowns[k] -= dt;
         }
 
+        if (this.frostPulseActive > 0) {
+            this.frostPulseActive -= dt;
+        }
+ 
         // Dash movement
         if (this.dashTimer > 0) {
+            // Leave an afterimage every few frames
+            if (!this.dashTrailTimer) this.dashTrailTimer = 0;
+            this.dashTrailTimer -= dt;
+
+            if (this.dashTrailTimer <= 0) {
+                this.spawnDashAfterimage();
+                this.dashTrailTimer = 0.04; // every ~40ms
+            }
+
+            // Dash movement
             this.x += this.dashVelocity.x * dt;
             this.y += this.dashVelocity.y * dt;
+
             this.dashTimer -= dt;
         }
+
 
         if (this.potionCooldown > 0) {
             this.potionCooldown -= dt;
         }
     }
 
-    // ======================================================
-    // MOVEMENT
-    // ======================================================
+    useFrostPulse() {
+        if (this.cooldowns.frostPulse > 0) return;
+        if (this.spirit < 25) return;
+
+        this.spirit -= 25;
+        this.regenTimer = 0;
+        this.cooldowns.frostPulse = 6;  // cooldown in seconds
+        this.frostPulseActive = 0.4;    // ring visual lasts 0.4s
+
+        // Slow all nearby enemies
+        for (const enemy of enemies) {
+            const dx = enemy.x - this.x;
+            const dy = enemy.y - this.y;
+            const dist = Math.hypot(dx, dy);
+
+            if (dist < 120) {
+                enemy.slowTimer = 3.0;   // slow lasts 3 seconds
+                enemy.slowMultiplier = 0.45; // move at 45% speed
+
+                // Snowflake particle on enemy
+                particles.push(
+                    new Particle(
+                        enemy.x,
+                        enemy.y - 10,
+                        (Math.random() - 0.5) * 40,
+                        -50 - Math.random() * 40,
+                        0.7,
+                        "rgba(180,220,255,ALPHA)",
+                        3
+                    )
+                );
+            }
+        }
+
+        console.log("❄️ Frost Pulse!");
+    }
+
+
     handleMovement(dt, keys, npcs) {
         let moveX = 0, moveY = 0;
 
@@ -347,9 +424,6 @@ export class Player {
         if (!isColliding(nextX, nextY, this, npcs)) this.y = nextY;
     }
 
-    // ======================================================
-    // KNOCKBACK HANDLING
-    // ======================================================
     applyKnockback(dt) {
         const nextX = this.x + this.knockbackX * dt;
         const nextY = this.y + this.knockbackY * dt;
@@ -362,9 +436,17 @@ export class Player {
         this.knockbackY *= 0.85;
     }
 
-    // ======================================================
-    // ATTACK
-    // ======================================================
+    useFireSlash() {
+        if (this.spirit < 10) return;
+
+        this.spirit -= 10;
+        this.regenTimer = 0;
+
+        this.fireSlashTimer = 1.0; // lasts for 1 second (or 1 attack)
+
+        console.log("🔥 Fire Slash Ready!");
+    }
+
     attack() {
         if (this.attackCooldown > 0) return;
         this.attackCooldown = 0.5;
@@ -387,6 +469,38 @@ export class Player {
 
             enemy.damage?.(this.attackDamage, this.x, this.y);
             spawnDamageNumber(enemy.x, enemy.y, this.attackDamage);
+
+            if (this.fireSlashTimer > 0) {
+
+                // Bonus damage
+                enemy.damage?.(2, this.x, this.y);
+                spawnDamageNumber(enemy.x, enemy.y, 2);
+
+                // Burn DoT
+                enemy.burnTimer = 1.5;
+                enemy.burnTick = 0;
+
+                // Fire burst particles
+                for (let i = 0; i < 15; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 40 + Math.random() * 80;
+
+                    particles.push(
+                        new Particle(
+                            enemy.x,
+                            enemy.y,
+                            Math.cos(angle) * speed,
+                            Math.sin(angle) * speed,
+                            0.4,
+                            "rgba(255,100,20,ALPHA)",
+                            3
+                        )
+                    );
+                }
+
+                // This consumes Fire Slash
+                this.fireSlashTimer = 0;
+            }
 
             // Blood particles
             for (let i = 0; i < 8; i++) {
@@ -451,7 +565,42 @@ export class Player {
             this.x - this.frameWidth / 2, this.y - this.frameHeight / 2,
             this.frameWidth, this.frameHeight
         );
+
+        if (this.fireSlashTimer > 0) {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 20, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(255, 100, 0, 0.5)";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+
+        if (this.frostPulseActive > 0) {
+            const alpha = this.frostPulseActive / 0.4;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 120, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(150,200,255,${alpha})`;
+            ctx.lineWidth = 6;
+            ctx.stroke();
+        }
+
     }
+
+    spawnDashAfterimage() {
+        particles.push(
+            new Particle(
+                this.x,
+                this.y,
+                0,
+                0,
+                0.25, // lifespan
+                "rgba(255,255,255,ALPHA)", // color fades to transparent
+                0,
+                this.frame,        // store player's frame
+                this.facing        // store player's facing
+            )
+        );
+    }
+
 }
 
 export const player = new Player(5, 5);

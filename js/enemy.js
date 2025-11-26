@@ -43,12 +43,43 @@ export class Enemy {
         this.waypoints = []; // Array of {x, y} world positions
         this.currentWaypoint = 0; // Index tracker
         this.patrolLoop = true; // Optional loop toggle
+        // Frost Pulse slow effect
+        this.slowTimer = 0;
+        this.slowMultiplier = 1;
+        // Burn effect (Fire Slash)
+        this.burnTimer = 0;
+        this.burnTick = 0;
+
 
 
     }
 
     update(dt, player, world, pathfinder) {
         if (!this.alive) return;
+
+        // =====================================
+        // SLOW EFFECT (From Frost Pulse)
+        // =====================================
+        if (this.slowTimer > 0) {
+            this.slowTimer -= dt;
+        } else {
+            this.slowMultiplier = 1;   // back to full speed
+        }
+
+        if (this.burnTimer > 0) {
+            this.burnTimer -= dt;
+
+            this.burnTick += dt;
+            if (this.burnTick >= 0.5) {
+                this.damage?.(1, this.x, this.y);
+                this.burnTick = 0;
+
+                particles.push(
+                    new Particle(this.x, this.y - 10, 0, -30, 0.3, "rgba(255,150,50,ALPHA)", 2)
+                );
+            }
+        }
+
 
         const dx = player.x - this.x;
         const dy = player.y - this.y;
@@ -133,8 +164,8 @@ export class Enemy {
                     const distToNext = Math.hypot(dx, dy);
 
                     if (distToNext > 2) {
-                        this.x += (dx / distToNext) * this.speed * dt;
-                        this.y += (dy / distToNext) * this.speed * dt;
+                        this.x += (dx / distToNext) * this.speed * this.slowMultiplier * dt;
+                        this.y += (dy / distToNext) * this.speed * this.slowMultiplier * dt;
                     } else {
                         this.pathIndex++;
                     }
@@ -261,7 +292,7 @@ export class Enemy {
 
       // Move towards the node (clamped to not overshoot)
       if (distToNext > 1) {
-        const move = Math.min(this.speed * dt, distToNext);
+        const move = Math.min(this.speed * this.slowMultiplier * dt, distToNext);
         this.x += (dx / distToNext) * move;
         this.y += (dy / distToNext) * move;
       }
@@ -283,8 +314,8 @@ export class Enemy {
         const dy = ty - this.y;
         const dist = Math.hypot(dx, dy);
         if (dist > 1) {
-            this.x += (dx / dist) * this.speed * dt;
-            this.y += (dy / dist) * this.speed * dt;
+            this.x += (dx / dist) * this.speed * this.slowMultiplier * dt;
+            this.y += (dy / dist) * this.speed * this.slowMultiplier * dt;
         }
     }
 

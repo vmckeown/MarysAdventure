@@ -19,6 +19,36 @@ export class Particle {
     }
 
     draw(ctx) {
+        // PLAYER AFTERIMAGE DASH TRAIL
+        if (this.frame !== undefined && this.facing !== undefined) {
+            const frameWidth = 32;
+            const frameHeight = 33;
+
+            const facingRow = {
+                up: 0,
+                left: 1,
+                down: 2,
+                right: 3
+            }[this.facing];
+
+            ctx.globalAlpha = this.life / this.maxLife; // fade over time
+
+            ctx.drawImage(
+                playerImage,
+                this.frame * frameWidth,
+                facingRow * frameHeight,
+                frameWidth,
+                frameHeight,
+                this.x - frameWidth / 2,
+                this.y - frameHeight / 2,
+                frameWidth,
+                frameHeight
+            );
+
+            ctx.globalAlpha = 1;
+            return;
+        }
+
         if (this.life <= 0) return;
         const alpha = this.life / this.maxLife;
         ctx.fillStyle = this.color.replace("ALPHA", alpha.toFixed(2));
