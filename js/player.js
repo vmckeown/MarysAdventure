@@ -23,14 +23,14 @@ class SpiritDart {
         this.vy = dirY * speed;
 
         this.frameSize = 32;
-        this.facingDir = facingDir
+        this.facingDir = facingDir;
         const dirToRow = {
             up: 4,     // row 5
             left: 5,   // row 6
             down: 6,   // row 7
             right: 7   // row 8
         };
-        this.rowIndex = dirToRow[this.facingDir];   
+        this.rowIndex = dirToRow[this.facingDir];
         this.frame = 0;
         this.frameTimer = 0;
         this.frameInterval = 0.06;
@@ -38,8 +38,8 @@ class SpiritDart {
         this.alive = true;
 
         this.travelFrames = [2, 3, 4, 5]; // looping travel
-        this.spawnFrames = [0, 1];       // spawn
-        this.hitFrames = [6, 7];         // burst
+        this.spawnFrames = [0, 1];        // spawn
+        this.hitFrames = [6, 7];          // burst
         this.mode = "spawn";
 
         this.frameWidth = 32;
@@ -100,7 +100,6 @@ class SpiritDart {
     }
 
     draw(ctx) {
-
         const frameWidth = this.frameWidth;
         const frameHeight = this.frameHeight;
 
@@ -113,8 +112,7 @@ class SpiritDart {
             frameWidth, frameHeight,
             this.x - frameWidth / 2,
             this.y - frameHeight / 2,
-            frameWidth,
-            frameHeight
+            frameWidth, frameHeight
         );
     }
 }
@@ -162,31 +160,44 @@ export class Player {
         this.knockbackY = 0;
         this.knockbackTimer = 0;
 
+        this.fireSlashTimer = 0;  // time left for empowered slash
+
+        // Ability cooldowns
         this.cooldowns = {
             dash: 0,
             echoSense: 0,
-            spiritPulse: 0
+            spiritPulse: 0,
+            frostPulse: 0,
+            windStep: 0
         };
 
-        this.fireSlashTimer = 0;  // time left for empowered slash
+        // Visual timers
+        this.frostPulseActive = 0;
 
-        this.cooldowns.frostPulse = 0;
-        this.frostPulseActive = 0;   // visual timer for the frost ring
-
-
-
+        // Animation
         this.frame = 0;
         this.frameTimer = 0;
-        this.frameInterval = 0.1; 
+        this.frameInterval = 0.1;
         this.animating = false;
         this.isMoving = false;
         this.frameWidth = 32;
         this.frameHeight = 33;
 
-        this.potions = 3;        
-        this.potionHeal = 2;     
-        this.potionCooldown = 0; 
+        // Potions
+        this.potions = 3;
+        this.potionHeal = 2;
+        this.potionCooldown = 0;
         this.potionCooldownTime = 1.5;
+
+        // Wind Step (double-tap) state
+        this.time = 0;
+        this.lastTapTime = {
+            up: -999,
+            down: -999,
+            left: -999,
+            right: -999
+        };
+        this.windStepInvuln = 0;
     }
 
     // ======================================================
@@ -241,7 +252,7 @@ export class Player {
         this.cooldowns.dash = 1.5;
         this.stamina -= 15;
         this.regenTimer = 0;
-        console.log("DASH")
+        console.log("DASH");
         const dashSpeed = 450;
         let dx = 0, dy = 0;
 
@@ -268,7 +279,7 @@ export class Player {
                 "rgba(255,255,255,ALPHA)",
                 6
             )
-        );  
+        );
     }
 
     // ======================================================
@@ -294,77 +305,98 @@ export class Player {
     }
 
     // ======================================================
-    // UPDATE
-    // ======================================================
-    update(dt, keys, npcs, objects, ctx) {
-        this.isMoving = false;
-        if (this.invulnTimer > 0) this.invulnTimer -= dt;
-        if (this.attackCooldown > 0) this.attackCooldown -= dt;
+    // WIND STEP (Double-tap dodge)
+// ======================================================
+    handleWindStep(ctx, npcs) {
+        const window = 0.25; // seconds for double-tap
 
-        // Movement facing
-        if (keys["w"] || keys["ArrowUp"]) this.facing = "up", this.isMoving = true;
-        if (keys["s"] || keys["ArrowDown"]) this.facing = "down", this.isMoving = true;
-        if (keys["a"] || keys["ArrowLeft"]) this.facing = "left", this.isMoving = true;
-        if (keys["d"] || keys["ArrowRight"]) this.facing = "right", this.isMoving = true;
+        const now = this.time;
 
-        if (wasKeyPressed(" ")) this.attack();
+        const tap = (dirName, key, dx, dy) => {
+            if (!wasKeyPressed(key)) return;
 
-        if (this.knockbackTimer > 0) {
-            this.applyKnockback(dt);
-            return;
-        }
-
-        this.handleMovement(dt, keys, npcs);
-
-        if (this.levelUpTimer > 0) this.levelUpTimer -= dt;
-
-        // ABILITIES
-        if (keys["Shift"]) this.useDash(ctx);
-      //  if (wasKeyPressed("e")) this.useEchoSense(ctx);
-        if (wasKeyPressed("f")) this.useSpiritPulse(ctx);
-        if (wasKeyPressed("g")) this.useFireSlash();
-        if (wasKeyPressed("r")) this.useFrostPulse();
-
-        // Regeneration logic
-        this.regenTimer += dt;
-        if (this.regenTimer > this.regenDelay) {
-            this.stamina = Math.min(this.maxStamina, this.stamina + this.staminaRegenRate * dt);
-            this.spirit = Math.min(this.maxSpirit, this.spirit + this.spiritRegenRate * dt);
-        }
-
-        // Cooldown reduction
-        for (const k in this.cooldowns) {
-            if (this.cooldowns[k] > 0) this.cooldowns[k] -= dt;
-        }
-
-        if (this.frostPulseActive > 0) {
-            this.frostPulseActive -= dt;
-        }
- 
-        // Dash movement
-        if (this.dashTimer > 0) {
-            // Leave an afterimage every few frames
-            if (!this.dashTrailTimer) this.dashTrailTimer = 0;
-            this.dashTrailTimer -= dt;
-
-            if (this.dashTrailTimer <= 0) {
-                this.spawnDashAfterimage();
-                this.dashTrailTimer = 0.04; // every ~40ms
+            const last = this.lastTapTime[dirName];
+            if (now - last <= window) {
+                this.performWindStep(dx, dy, ctx, npcs);
             }
+            this.lastTapTime[dirName] = now;
+        };
 
-            // Dash movement
-            this.x += this.dashVelocity.x * dt;
-            this.y += this.dashVelocity.y * dt;
-
-            this.dashTimer -= dt;
-        }
-
-
-        if (this.potionCooldown > 0) {
-            this.potionCooldown -= dt;
-        }
+        // WASD only for now
+        tap("up", "w", 0, -1);
+        tap("down", "s", 0, 1);
+        tap("left", "a", -1, 0);
+        tap("right", "d", 1, 0);
     }
 
+    performWindStep(dx, dy, ctx, npcs) {
+        if (this.cooldowns.windStep > 0) return;
+        if (this.spirit < 10) return;
+
+        this.spirit -= 10;
+        this.regenTimer = 0;
+        this.cooldowns.windStep = 0.75; // cooldown
+        this.invulnTimer = Math.max(this.invulnTimer, 0.2); // short i-frames
+
+        const distance = 60;
+
+        const startX = this.x;
+        const startY = this.y;
+
+        // Step forward in a few increments, stopping at walls
+        let finalX = this.x;
+        let finalY = this.y;
+        const steps = 3;
+
+        for (let i = 1; i <= steps; i++) {
+            const t = i / steps;
+            const testX = this.x + dx * distance * t;
+            const testY = this.y + dy * distance * t;
+
+            if (!isColliding(testX, testY, this, npcs)) {
+                finalX = testX;
+                finalY = testY;
+            } else {
+                break;
+            }
+        }
+
+        // Visuals: small wind ring at start and end + ghost afterimage
+        particles.push(
+            new Particle(
+                startX,
+                startY,
+                0,
+                0,
+                0.2,
+                "rgba(255,255,255,ALPHA)",
+                6
+            )
+        );
+
+        this.x = finalX;
+        this.y = finalY;
+
+        particles.push(
+            new Particle(
+                this.x,
+                this.y,
+                0,
+                0,
+                0.25,
+                "rgba(255,255,255,ALPHA)",
+                6
+            )
+        );
+
+        this.spawnDashAfterimage();
+
+        console.log("🌬️ Wind Step!");
+    }
+
+    // ======================================================
+    // FROST PULSE
+    // ======================================================
     useFrostPulse() {
         if (this.cooldowns.frostPulse > 0) return;
         if (this.spirit < 25) return;
@@ -381,8 +413,8 @@ export class Player {
             const dist = Math.hypot(dx, dy);
 
             if (dist < 120) {
-                enemy.slowTimer = 3.0;   // slow lasts 3 seconds
-                enemy.slowMultiplier = 0.45; // move at 45% speed
+                enemy.slowTimer = 3.0;         // slow lasts 3 seconds
+                enemy.slowMultiplier = 0.45;   // move at 45% speed
 
                 // Snowflake particle on enemy
                 particles.push(
@@ -402,7 +434,86 @@ export class Player {
         console.log("❄️ Frost Pulse!");
     }
 
+    // ======================================================
+    // UPDATE
+    // ======================================================
+    update(dt, keys, npcs, objects, ctx) {
+        this.time += dt;
 
+        this.isMoving = false;
+        if (this.invulnTimer > 0) this.invulnTimer -= dt;
+        if (this.attackCooldown > 0) this.attackCooldown -= dt;
+
+        // Movement facing
+        if (keys["w"] || keys["ArrowUp"]) this.facing = "up", this.isMoving = true;
+        if (keys["s"] || keys["ArrowDown"]) this.facing = "down", this.isMoving = true;
+        if (keys["a"] || keys["ArrowLeft"]) this.facing = "left", this.isMoving = true;
+        if (keys["d"] || keys["ArrowRight"]) this.facing = "right", this.isMoving = true;
+
+        // ATTACK
+        if (wasKeyPressed(" ")) this.attack();
+
+        if (this.knockbackTimer > 0) {
+            this.applyKnockback(dt);
+            return;
+        }
+
+        // Wind Step (double-tap detection)
+        this.handleWindStep(ctx, npcs);
+
+        // Normal movement
+        this.handleMovement(dt, keys, npcs);
+
+        if (this.levelUpTimer > 0) this.levelUpTimer -= dt;
+
+        // ABILITIES
+        if (keys["Shift"]) this.useDash(ctx);
+        if (wasKeyPressed("f")) this.useSpiritPulse(ctx);
+        if (wasKeyPressed("g")) this.useFireSlash();
+        if (wasKeyPressed("r")) this.useFrostPulse();
+
+        // Regeneration logic
+        this.regenTimer += dt;
+        if (this.regenTimer > this.regenDelay) {
+            this.stamina = Math.min(this.maxStamina, this.stamina + this.staminaRegenRate * dt);
+            this.spirit = Math.min(this.maxSpirit, this.spirit + this.spiritRegenRate * dt);
+        }
+
+        // Cooldown reduction
+        for (const k in this.cooldowns) {
+            if (this.cooldowns[k] > 0) this.cooldowns[k] -= dt;
+        }
+
+        if (this.frostPulseActive > 0) {
+            this.frostPulseActive -= dt;
+        }
+
+        // Dash movement
+        if (this.dashTimer > 0) {
+            // Leave an afterimage every few frames
+            if (!this.dashTrailTimer) this.dashTrailTimer = 0;
+            this.dashTrailTimer -= dt;
+
+            if (this.dashTrailTimer <= 0) {
+                this.spawnDashAfterimage();
+                this.dashTrailTimer = 0.04; // every ~40ms
+            }
+
+            // Dash movement
+            this.x += this.dashVelocity.x * dt;
+            this.y += this.dashVelocity.y * dt;
+
+            this.dashTimer -= dt;
+        }
+
+        if (this.potionCooldown > 0) {
+            this.potionCooldown -= dt;
+        }
+    }
+
+    // ======================================================
+    // MOVEMENT
+    // ======================================================
     handleMovement(dt, keys, npcs) {
         let moveX = 0, moveY = 0;
 
@@ -424,6 +535,9 @@ export class Player {
         if (!isColliding(nextX, nextY, this, npcs)) this.y = nextY;
     }
 
+    // ======================================================
+    // KNOCKBACK
+    // ======================================================
     applyKnockback(dt) {
         const nextX = this.x + this.knockbackX * dt;
         const nextY = this.y + this.knockbackY * dt;
@@ -436,6 +550,9 @@ export class Player {
         this.knockbackY *= 0.85;
     }
 
+    // ======================================================
+    // FIRE SLASH
+    // ======================================================
     useFireSlash() {
         if (this.spirit < 10) return;
 
@@ -447,6 +564,9 @@ export class Player {
         console.log("🔥 Fire Slash Ready!");
     }
 
+    // ======================================================
+    // ATTACK
+    // ======================================================
     attack() {
         if (this.attackCooldown > 0) return;
         this.attackCooldown = 0.5;
@@ -470,6 +590,7 @@ export class Player {
             enemy.damage?.(this.attackDamage, this.x, this.y);
             spawnDamageNumber(enemy.x, enemy.y, this.attackDamage);
 
+            // Fire Slash bonus
             if (this.fireSlashTimer > 0) {
 
                 // Bonus damage
@@ -507,11 +628,15 @@ export class Player {
                 const angle = Math.random() * Math.PI * 2;
                 const speed = 50 + Math.random() * 100;
                 particles.push(
-                    new Particle(enemy.x, enemy.y,
+                    new Particle(
+                        enemy.x,
+                        enemy.y,
                         Math.cos(angle) * speed,
                         Math.sin(angle) * speed,
                         0.3,
-                        "rgba(255,50,50,ALPHA)", 2)
+                        "rgba(255,50,50,ALPHA)",
+                        2
+                    )
                 );
             }
 
@@ -522,12 +647,14 @@ export class Player {
                 right: 0
             };
 
-            particles.push(new SlashParticle(
-                this.x, this.y,
-                angleMap[this.facing],
-                "rgba(255,255,255,ALPHA)",
-                0.15
-            ));
+            particles.push(
+                new SlashParticle(
+                    this.x, this.y,
+                    angleMap[this.facing],
+                    "rgba(255,255,255,ALPHA)",
+                    0.15
+                )
+            );
         }
     }
 
@@ -535,8 +662,6 @@ export class Player {
     // DRAW PLAYER
     // ======================================================
     draw(ctx, dt) {
-        const frameSize = 32;
-        let frameX = 0;
         let frameY = 0;
 
         if (this.facing === "up") frameY = 0;
@@ -558,22 +683,7 @@ export class Player {
             this.frame = 0; // idle frame
         }
 
-        ctx.drawImage(
-            playerImage,
-            this.frame * this.frameWidth, frameY * this.frameHeight,
-            this.frameWidth, this.frameHeight,
-            this.x - this.frameWidth / 2, this.y - this.frameHeight / 2,
-            this.frameWidth, this.frameHeight
-        );
-
-        if (this.fireSlashTimer > 0) {
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, 20, 0, Math.PI * 2);
-            ctx.strokeStyle = "rgba(255, 100, 0, 0.5)";
-            ctx.lineWidth = 3;
-            ctx.stroke();
-        }
-
+        // Frost Pulse ring
         if (this.frostPulseActive > 0) {
             const alpha = this.frostPulseActive / 0.4;
             ctx.beginPath();
@@ -583,6 +693,22 @@ export class Player {
             ctx.stroke();
         }
 
+        // Fire Slash aura
+        if (this.fireSlashTimer > 0) {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 20, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(255, 100, 0, 0.5)";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+
+        ctx.drawImage(
+            playerImage,
+            this.frame * this.frameWidth, frameY * this.frameHeight,
+            this.frameWidth, this.frameHeight,
+            this.x - this.frameWidth / 2, this.y - this.frameHeight / 2,
+            this.frameWidth, this.frameHeight
+        );
     }
 
     spawnDashAfterimage() {
@@ -600,7 +726,6 @@ export class Player {
             )
         );
     }
-
 }
 
 export const player = new Player(5, 5);
