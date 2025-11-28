@@ -268,6 +268,7 @@ let previousKeys = {};
 
 // ===== Render =====
 function render(dt) {
+    
     ctx.fillStyle = BACKGROUND_COLOR;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
@@ -276,8 +277,17 @@ function render(dt) {
 
     drawWorld(ctx, camera);
     //drawObjects(ctx, camera, objects);
+    // All world geometry & entities first
     drawEntities(deltaTime);
-    drawEffects();
+
+    // Slash should always be ABOVE player
+    drawParticles(ctx);
+
+    // Spirit darts also above player
+    for (const dart of spiritDarts) dart.draw(ctx);
+
+    // Damage numbers always last
+    drawDamageNumbers(ctx);
 
     // ===== DEBUG: Draw Enemy Paths =====
     for (const enemy of enemies) {
@@ -365,10 +375,6 @@ function render(dt) {
             ctx.stroke();
         }
     }
-
-    drawParticles(ctx);
-    for (const dart of spiritDarts) dart.draw(ctx);
-    drawDamageNumbers(ctx);
 
     ctx.restore();
     drawUI();
