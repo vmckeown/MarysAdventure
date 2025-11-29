@@ -71,9 +71,8 @@ export function drawParticles(ctx) {
     for (const p of particles) p.draw(ctx);
 }
 
-
 export class SlashParticle {
-    constructor(x, y, angle, color, lifetime = 0.2) {
+    constructor(x, y, angle, color, lifetime = 0.2, row = 8) {
         this.x = x;
         this.y = y;
         this.angle = angle;
@@ -81,13 +80,16 @@ export class SlashParticle {
         this.lifetime = lifetime;
         this.age = 0;
 
+        this.row = row;   // ← store the Fire Slash row
+
         this.frame = 0;
         this.frameTimer = 0;
-        this.frameInterval = 0.05; // animation speed
+        this.frameInterval = 0.05;
 
         this.frameWidth = 32;
-        this.frameHeight = 33;
+        this.frameHeight = 32;
     }
+
 
     update(dt) {
         this.age += dt;
@@ -105,7 +107,7 @@ export class SlashParticle {
     draw(ctx) {
 
         const sx = this.frame * this.frameWidth;
-        const sy = FIRE_SLASH_ROW * this.frameHeight; // fire slash row
+        const sy = this.row * this.frameHeight;
 
         ctx.save();
         ctx.translate(this.x, this.y);
