@@ -87,7 +87,7 @@ export class SlashParticle {
         this.frameInterval = 0.05;
 
         this.frameWidth = 32;
-        this.frameHeight = 32;
+        this.frameHeight = 33;
     }
 
 
@@ -105,25 +105,18 @@ export class SlashParticle {
     }
 
     draw(ctx) {
-
         const sx = this.frame * this.frameWidth;
         const sy = this.row * this.frameHeight;
-
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.angle);
 
         ctx.drawImage(
             playerImage,
             sx, sy,
             this.frameWidth, this.frameHeight,
-            -this.frameWidth / 2,
-            -this.frameHeight / 2,
+            this.x - this.frameWidth / 2,
+            this.y - this.frameHeight / 2,
             this.frameWidth,
             this.frameHeight
         );
-
-        ctx.restore();
     }
 }
 

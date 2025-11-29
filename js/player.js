@@ -698,37 +698,6 @@ export class Player {
                 ctx.stroke();
             }
 
-            // Draw Fire Slash animation if an empowered attack was just used
-            if (this.fireSlashAttackTime > 0) {
-                const rowMap = {
-                    up: 8,
-                    left: 9,
-                    down: 10,
-                    right: 11
-                };
-                const row = rowMap[this.fireSlashAttackFacing];
-
-                const sx = this.fireSlashAttackFrame * 32;
-                const sy = row * 33;
-
-                const offsetMap = {
-                    up:    { x: 0,  y: -20 },
-                    down:  { x: 0,  y: 20 },
-                    left:  { x: -20, y: 0 },
-                    right: { x: 20, y: 0 }
-                };
-                const off = offsetMap[this.fireSlashAttackFacing];
-
-                console.log("sx: " + sx + " sy: " + sy);
-
-                ctx.drawImage(
-                    playerImage,
-                    sx, sy, 32, 33,
-                    this.x - 16 + off.x,
-                    this.y - 16 + off.y,
-                    32, 33
-                );
-            }
 
             // Draw Mary herself
             ctx.drawImage(
