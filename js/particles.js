@@ -1,4 +1,4 @@
-export const particles = [];
+import { playerImage, FIRE_SLASH_ROW } from "./player.js";
 
 export class Particle {
     constructor(x, y, vx, vy, life, color, size = 2) {
@@ -58,10 +58,13 @@ export class Particle {
     }
 }
 
+export const particles = [];
+
 export function updateParticles(dt) {
     for (let i = particles.length - 1; i >= 0; i--) {
-        particles[i].update(dt);
-        if (particles[i].life <= 0) particles.splice(i, 1);
+        const p = particles[i];
+        p.update(dt);
+        if (p.dead) particles.splice(i, 1);
     }
 }
 
@@ -71,27 +74,56 @@ export function drawParticles(ctx) {
 
 
 export class SlashParticle {
-    constructor(x, y, angle, color = "rgba(255,255,255,ALPHA)", duration = 0.2) {
+    constructor(x, y, angle, color, lifetime = 0.2) {
         this.x = x;
         this.y = y;
         this.angle = angle;
-        this.life = this.maxLife = duration;
         this.color = color;
-        this.radius = 30;
-        this.arcWidth = Math.PI / 3; // 60 degree arc
+        this.lifetime = lifetime;
+        this.age = 0;
+
+        this.frame = 0;
+        this.frameTimer = 0;
+        this.frameInterval = 0.05; // animation speed
+
+        this.frameWidth = 32;
+        this.frameHeight = 32;
     }
 
     update(dt) {
-        this.life -= dt;
+        this.age += dt;
+        if (this.age > this.lifetime) this.dead = true;
+
+        // Animate frames
+        this.frameTimer += dt;
+        if (this.frameTimer > this.frameInterval) {
+            this.frameTimer = 0;
+            this.frame++;
+            if (this.frame > 3) this.dead = true; // 4 frames
+        }
     }
 
     draw(ctx) {
-        if (this.life <= 0) return;
-        const alpha = this.life / this.maxLife;
-        ctx.strokeStyle = this.color.replace("ALPHA", alpha.toFixed(2));
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, this.angle - this.arcWidth / 2, this.angle + this.arcWidth / 2);
-        ctx.stroke();
+
+        const sx = this.frame * this.frameWidth;
+        const sy = FIRE_SLASH_ROW * this.frameHeight; // fire slash row
+
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+
+        ctx.drawImage(
+            playerImage,
+            sx, sy,
+            this.frameWidth, this.frameHeight,
+            -this.frameWidth / 2,
+            -this.frameHeight / 2,
+            this.frameWidth,
+            this.frameHeight
+        );
+
+        ctx.restore();
     }
 }
+
+

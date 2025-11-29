@@ -1,11 +1,14 @@
 import { isColliding, TILE_SIZE } from "./world.js";
 import { keys, wasKeyPressed } from "./input.js";
 import { enemies } from "./enemy.js";
-import { particles, Particle, SlashParticle } from "./particles.js";
+import { particles, Particle, SlashParticle } from "./particles.js"
 import { spawnDamageNumber } from "./damageNumbers.js";
 
-const playerImage = new Image();
+
+export const playerImage = new Image();
 playerImage.src = "./pics/Mary.png";
+
+export const FIRE_SLASH_ROW = 9;  
 
 // ======================================================
 // SPIRIT DART SYSTEM
@@ -639,7 +642,6 @@ export class Player {
                     )
                 );
             }
-
             const angleMap = {
                 up: -Math.PI / 2,
                 down: Math.PI / 2,
@@ -647,14 +649,13 @@ export class Player {
                 right: 0
             };
 
-            particles.push(
-                new SlashParticle(
-                    this.x, this.y,
-                    angleMap[this.facing],
-                    "rgba(255,255,255,ALPHA)",
-                    0.15
-                )
-            );
+            particles.push(new SlashParticle(
+                this.x + attackDir[0] * 18,
+                this.y + attackDir[1] * 14,
+                angleMap[this.facing],
+                "rgba(255,255,255,ALPHA)",
+                0.2
+            ));
         }
     }
 
