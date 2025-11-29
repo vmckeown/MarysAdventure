@@ -1,14 +1,19 @@
+// player.js
 import { isColliding, TILE_SIZE } from "./world.js";
 import { keys, wasKeyPressed } from "./input.js";
 import { enemies } from "./enemy.js";
-import { particles, Particle, SlashParticle } from "./particles.js"
+import { particles, Particle, SlashParticle } from "./particles.js";
 import { spawnDamageNumber } from "./damageNumbers.js";
 
-
+// ======================================================
+// SPRITES
+// ======================================================
 export const playerImage = new Image();
 playerImage.src = "./pics/Mary.png";
 
-export const FIRE_SLASH_ROW = 9;  
+// Row index (0-based) of the 4-frame Fire Slash animation on Mary.png
+// Adjust if needed, but 8 should match your bottom fire row.
+export const FIRE_SLASH_ROW = 8;
 
 // ======================================================
 // SPIRIT DART SYSTEM
@@ -25,15 +30,15 @@ class SpiritDart {
         this.vx = dirX * speed;
         this.vy = dirY * speed;
 
-        this.frameSize = 32;
         this.facingDir = facingDir;
         const dirToRow = {
-            up: 4,     // row 5
+            up: 4,     // row 5 of Mary.png
             left: 5,   // row 6
             down: 6,   // row 7
             right: 7   // row 8
         };
         this.rowIndex = dirToRow[this.facingDir];
+
         this.frame = 0;
         this.frameTimer = 0;
         this.frameInterval = 0.06;
@@ -41,8 +46,8 @@ class SpiritDart {
         this.alive = true;
 
         this.travelFrames = [2, 3, 4, 5]; // looping travel
-        this.spawnFrames = [0, 1];        // spawn
-        this.hitFrames = [6, 7];          // burst
+        this.spawnFrames  = [0, 1];       // spawn
+        this.hitFrames    = [6, 7];       // burst
         this.mode = "spawn";
 
         this.frameWidth = 32;
@@ -54,7 +59,7 @@ class SpiritDart {
 
         this.frameTimer += dt;
 
-        // FRAME ANIMATION LOGIC
+        // FRAME ANIMATION
         if (this.frameTimer >= this.frameInterval) {
             this.frameTimer = 0;
 
@@ -84,7 +89,6 @@ class SpiritDart {
         for (const enemy of enemies) {
             const dist = Math.hypot(enemy.x - this.x, enemy.y - this.y);
             if (dist < 20 && this.mode !== "hit") {
-                // Knockback
                 const push = 800;
                 const dx = enemy.x - this.x;
                 const dy = enemy.y - this.y;
@@ -93,7 +97,6 @@ class SpiritDart {
                 enemy.x += (dx / len) * push * dt;
                 enemy.y += (dy / len) * push * dt;
 
-                // Optional small damage
                 enemy.damage?.(1, this.x, this.y);
 
                 this.mode = "hit";
@@ -139,13 +142,13 @@ export class Player {
         this.invulnTimer = 0;
 
         this.stamina = this.maxStamina = 50;
+        this.spirit  = this.maxSpirit  = 50;
         this.strength = 5;
-        this.agility = 5;
-        this.focus = 5;
-        this.spirit = this.maxSpirit = 50;
+        this.agility  = 5;
+        this.focus    = 5;
 
         this.staminaRegenRate = 10;
-        this.spiritRegenRate = 5;
+        this.spiritRegenRate  = 5;
         this.regenDelay = 1.5;
         this.regenTimer = 0;
 
@@ -154,18 +157,21 @@ export class Player {
         this.attackAngle = Math.PI / 4;
         this.attackDamage = 1;
 
+        // XP / Level
         this.level = 1;
         this.xp = 0;
         this.xpToNext = 100;
         this.levelUpTimer = 0;
 
+        // Knockback
         this.knockbackX = 0;
         this.knockbackY = 0;
         this.knockbackTimer = 0;
 
-        this.fireSlashTimer = 0;  // time left for empowered slash
+        // Fire Slash buff timer
+        this.fireSlashTimer = 0;
 
-        // Ability cooldowns
+        // Cooldowns
         this.cooldowns = {
             dash: 0,
             echoSense: 0,
@@ -173,6 +179,13 @@ export class Player {
             frostPulse: 0,
             windStep: 0
         };
+
+        this.fireSlashActive = false;
+        this.fireSlashAnimTime = 0;
+        this.fireSlashDuration = 0.25; // quarter-second animation
+        this.fireSlashFrame = 0;
+        this.fireSlashFacing = "down";
+
 
         // Visual timers
         this.frostPulseActive = 0;
@@ -185,6 +198,7 @@ export class Player {
         this.isMoving = false;
         this.frameWidth = 32;
         this.frameHeight = 33;
+        this.sprite = playerImage;
 
         // Potions
         this.potions = 3;
@@ -192,7 +206,7 @@ export class Player {
         this.potionCooldown = 0;
         this.potionCooldownTime = 1.5;
 
-        // Wind Step (double-tap) state
+        // Wind Step (double-tap)
         this.time = 0;
         this.lastTapTime = {
             up: -999,
@@ -201,10 +215,15 @@ export class Player {
             right: -999
         };
         this.windStepInvuln = 0;
+
+        // Dash
+        this.dashTimer = 0;
+        this.dashVelocity = { x: 0, y: 0 };
+        this.dashTrailTimer = 0;
     }
 
     // ======================================================
-    // SPIRIT PULSE ABILITY
+    // SPIRIT PULSE
     // ======================================================
     useSpiritPulse(ctx) {
         if (this.cooldowns.spiritPulse > 0 || this.spirit < 25) return;
@@ -228,12 +247,12 @@ export class Player {
             }
         }
 
-        // Spawn forward spirit dart
+        // Forward spirit dart
         const dirMap = {
-            up: [0, -1],
-            down: [0, 1],
-            left: [-1, 0],
-            right: [1, 0]
+            up:    [0, -1],
+            down:  [0,  1],
+            left:  [-1, 0],
+            right: [1,  0]
         };
 
         const [dx, dy] = dirMap[this.facing];
@@ -255,23 +274,28 @@ export class Player {
         this.cooldowns.dash = 1.5;
         this.stamina -= 15;
         this.regenTimer = 0;
+
         console.log("DASH");
+
         const dashSpeed = 450;
         let dx = 0, dy = 0;
 
-        if (this.facing === "up") dy = -1;
-        if (this.facing === "down") dy = 1;
-        if (this.facing === "left") dx = -1;
-        if (this.facing === "right") dx = 1;
+        if (this.facing === "up")    dy = -1;
+        if (this.facing === "down")  dy =  1;
+        if (this.facing === "left")  dx = -1;
+        if (this.facing === "right") dx =  1;
 
         this.dashVelocity = { x: dx * dashSpeed, y: dy * dashSpeed };
         this.dashTimer = 0.1;
+        this.dashTrailTimer = 0;
 
+        // Simple flash circle
         ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
         ctx.fill();
 
+        // Initial dash burst particle
         particles.push(
             new Particle(
                 this.x,
@@ -288,7 +312,6 @@ export class Player {
     // ======================================================
     // POTION
     // ======================================================
-
     usePotion() {
         if (this.potionCooldown > 0) return false;
         if (this.potions <= 0) return false;
@@ -296,25 +319,30 @@ export class Player {
 
         this.potions--;
         this.potionCooldown = this.potionCooldownTime;
-
         this.health = Math.min(this.maxHealth, this.health + this.potionHeal);
 
-        // particle effect still okay here
         particles.push(
-            new Particle(this.x, this.y - 20, 0, -30, 0.5, "rgba(100,255,100,ALPHA)", 4)
+            new Particle(
+                this.x,
+                this.y - 20,
+                0,
+                -30,
+                0.5,
+                "rgba(100,255,100,ALPHA)",
+                4
+            )
         );
 
-        return true; // Inform the game we used a potion
+        return true;
     }
 
     // ======================================================
-    // WIND STEP (Double-tap dodge)
-// ======================================================
+    // WIND STEP (double-tap dodge)
+    // ======================================================
     handleWindStep(ctx, npcs) {
-        const window = 0.25; // seconds for double-tap
+        const window = 0.25; // seconds
 
         const now = this.time;
-
         const tap = (dirName, key, dx, dy) => {
             if (!wasKeyPressed(key)) return;
 
@@ -325,11 +353,10 @@ export class Player {
             this.lastTapTime[dirName] = now;
         };
 
-        // WASD only for now
-        tap("up", "w", 0, -1);
-        tap("down", "s", 0, 1);
-        tap("left", "a", -1, 0);
-        tap("right", "d", 1, 0);
+        tap("up",    "w",  0, -1);
+        tap("down",  "s",  0,  1);
+        tap("left",  "a", -1,  0);
+        tap("right", "d",  1,  0);
     }
 
     performWindStep(dx, dy, ctx, npcs) {
@@ -338,15 +365,13 @@ export class Player {
 
         this.spirit -= 10;
         this.regenTimer = 0;
-        this.cooldowns.windStep = 0.75; // cooldown
-        this.invulnTimer = Math.max(this.invulnTimer, 0.2); // short i-frames
+        this.cooldowns.windStep = 0.75;
+        this.invulnTimer = Math.max(this.invulnTimer, 0.2);
 
         const distance = 60;
-
         const startX = this.x;
         const startY = this.y;
 
-        // Step forward in a few increments, stopping at walls
         let finalX = this.x;
         let finalY = this.y;
         const steps = 3;
@@ -364,7 +389,7 @@ export class Player {
             }
         }
 
-        // Visuals: small wind ring at start and end + ghost afterimage
+        // Start puff
         particles.push(
             new Particle(
                 startX,
@@ -380,6 +405,7 @@ export class Player {
         this.x = finalX;
         this.y = finalY;
 
+        // End puff
         particles.push(
             new Particle(
                 this.x,
@@ -406,20 +432,18 @@ export class Player {
 
         this.spirit -= 25;
         this.regenTimer = 0;
-        this.cooldowns.frostPulse = 6;  // cooldown in seconds
-        this.frostPulseActive = 0.4;    // ring visual lasts 0.4s
+        this.cooldowns.frostPulse = 6;
+        this.frostPulseActive = 0.4;
 
-        // Slow all nearby enemies
         for (const enemy of enemies) {
             const dx = enemy.x - this.x;
             const dy = enemy.y - this.y;
             const dist = Math.hypot(dx, dy);
 
             if (dist < 120) {
-                enemy.slowTimer = 3.0;         // slow lasts 3 seconds
-                enemy.slowMultiplier = 0.45;   // move at 45% speed
+                enemy.slowTimer = 3.0;
+                enemy.slowMultiplier = 0.45;
 
-                // Snowflake particle on enemy
                 particles.push(
                     new Particle(
                         enemy.x,
@@ -438,6 +462,38 @@ export class Player {
     }
 
     // ======================================================
+    // FIRE SLASH BUFF
+    // ======================================================
+    useFireSlash() {
+        if (this.spirit < 10) return;
+
+        this.spirit -= 10;
+        this.regenTimer = 0;
+
+        this.fireSlashTimer = 1.0;   // empowered attack ready
+        console.log("🔥 Fire Slash Ready!");
+    }
+
+
+    // ======================================================
+    // XP / LEVEL
+    // ======================================================
+    gainXP(amount) {
+        this.xp += amount;
+        if (this.xp >= this.xpToNext) {
+            this.xp -= this.xpToNext;
+            this.levelUp();
+        }
+    }
+
+    levelUp() {
+        this.level++;
+        this.xpToNext = Math.floor(this.xpToNext * 1.25);
+        this.levelUpTimer = 1.0;
+        console.log(`⭐ Level Up! You are now level ${this.level}`);
+    }
+
+    // ======================================================
     // UPDATE
     // ======================================================
     update(dt, keys, npcs, objects, ctx) {
@@ -446,22 +502,25 @@ export class Player {
         this.isMoving = false;
         if (this.invulnTimer > 0) this.invulnTimer -= dt;
         if (this.attackCooldown > 0) this.attackCooldown -= dt;
+        if (this.potionCooldown > 0) this.potionCooldown -= dt;
+        if (this.fireSlashTimer > 0) this.fireSlashTimer -= dt;
 
         // Movement facing
-        if (keys["w"] || keys["ArrowUp"]) this.facing = "up", this.isMoving = true;
-        if (keys["s"] || keys["ArrowDown"]) this.facing = "down", this.isMoving = true;
-        if (keys["a"] || keys["ArrowLeft"]) this.facing = "left", this.isMoving = true;
-        if (keys["d"] || keys["ArrowRight"]) this.facing = "right", this.isMoving = true;
+        if (keys["w"] || keys["ArrowUp"])  { this.facing = "up";    this.isMoving = true; }
+        if (keys["s"] || keys["ArrowDown"]) { this.facing = "down";  this.isMoving = true; }
+        if (keys["a"] || keys["ArrowLeft"]) { this.facing = "left";  this.isMoving = true; }
+        if (keys["d"] || keys["ArrowRight"]) { this.facing = "right"; this.isMoving = true; }
 
         // ATTACK
         if (wasKeyPressed(" ")) this.attack();
 
+        // Knockback
         if (this.knockbackTimer > 0) {
             this.applyKnockback(dt);
             return;
         }
 
-        // Wind Step (double-tap detection)
+        // Wind Step
         this.handleWindStep(ctx, npcs);
 
         // Normal movement
@@ -469,20 +528,20 @@ export class Player {
 
         if (this.levelUpTimer > 0) this.levelUpTimer -= dt;
 
-        // ABILITIES
-        if (keys["Shift"]) this.useDash(ctx);
+        // Abilities
+        if (keys["Shift"])  this.useDash(ctx);
         if (wasKeyPressed("f")) this.useSpiritPulse(ctx);
         if (wasKeyPressed("g")) this.useFireSlash();
         if (wasKeyPressed("r")) this.useFrostPulse();
 
-        // Regeneration logic
+        // Regen
         this.regenTimer += dt;
         if (this.regenTimer > this.regenDelay) {
             this.stamina = Math.min(this.maxStamina, this.stamina + this.staminaRegenRate * dt);
-            this.spirit = Math.min(this.maxSpirit, this.spirit + this.spiritRegenRate * dt);
+            this.spirit  = Math.min(this.maxSpirit,  this.spirit  + this.spiritRegenRate  * dt);
         }
 
-        // Cooldown reduction
+        // Cooldowns
         for (const k in this.cooldowns) {
             if (this.cooldowns[k] > 0) this.cooldowns[k] -= dt;
         }
@@ -491,26 +550,30 @@ export class Player {
             this.frostPulseActive -= dt;
         }
 
-        // Dash movement
+        // Dash movement + afterimage trail
         if (this.dashTimer > 0) {
-            // Leave an afterimage every few frames
-            if (!this.dashTrailTimer) this.dashTrailTimer = 0;
             this.dashTrailTimer -= dt;
-
             if (this.dashTrailTimer <= 0) {
                 this.spawnDashAfterimage();
-                this.dashTrailTimer = 0.04; // every ~40ms
+                this.dashTrailTimer = 0.04;
             }
 
-            // Dash movement
             this.x += this.dashVelocity.x * dt;
             this.y += this.dashVelocity.y * dt;
 
             this.dashTimer -= dt;
         }
 
-        if (this.potionCooldown > 0) {
-            this.potionCooldown -= dt;
+        if (this.fireSlashActive) {
+        this.fireSlashAnimTime -= dt;
+            if (this.fireSlashAnimTime <= 0) {
+                this.fireSlashActive = false;
+            } else {
+                // Animate frames
+                const progress = 1 - (this.fireSlashAnimTime / this.fireSlashDuration);
+                this.fireSlashFrame = Math.floor(progress * 4);  // 0..3
+                if (this.fireSlashFrame > 3) this.fireSlashFrame = 3;
+            }
         }
     }
 
@@ -520,10 +583,10 @@ export class Player {
     handleMovement(dt, keys, npcs) {
         let moveX = 0, moveY = 0;
 
-        if (keys["w"] || keys["ArrowUp"]) moveY = -1;
-        if (keys["s"] || keys["ArrowDown"]) moveY = 1;
-        if (keys["a"] || keys["ArrowLeft"]) moveX = -1;
-        if (keys["d"] || keys["ArrowRight"]) moveX = 1;
+        if (keys["w"] || keys["ArrowUp"])    moveY = -1;
+        if (keys["s"] || keys["ArrowDown"])  moveY =  1;
+        if (keys["a"] || keys["ArrowLeft"])  moveX = -1;
+        if (keys["d"] || keys["ArrowRight"]) moveX =  1;
 
         if (moveX !== 0 && moveY !== 0) {
             const len = Math.hypot(moveX, moveY);
@@ -554,34 +617,24 @@ export class Player {
     }
 
     // ======================================================
-    // FIRE SLASH
-    // ======================================================
-    useFireSlash() {
-        if (this.spirit < 10) return;
-
-        this.spirit -= 10;
-        this.regenTimer = 0;
-
-        this.fireSlashTimer = 1.0; // lasts for 1 second (or 1 attack)
-
-        console.log("🔥 Fire Slash Ready!");
-    }
-
-    // ======================================================
-    // ATTACK
+    // ATTACK + FIRE SLASH
     // ======================================================
     attack() {
         if (this.attackCooldown > 0) return;
         this.attackCooldown = 0.5;
 
         const attackDir = {
-            up: [0, -1],
-            down: [0, 1],
-            left: [-1, 0],
-            right: [1, 0]
+            up:    [0, -1],
+            down:  [0,  1],
+            left:  [-1, 0],
+            right: [1,  0]
         }[this.facing];
 
+        let enemyHit = false;
+
         for (const enemy of enemies) {
+            if (!enemy.alive) continue;
+
             const dx = enemy.x - this.x;
             const dy = enemy.y - this.y;
             const dist = Math.hypot(dx, dy);
@@ -590,13 +643,14 @@ export class Player {
             const dot = (dx * attackDir[0] + dy * attackDir[1]) / dist;
             if (dot < Math.cos(this.attackAngle)) continue;
 
+            // Base hit
+            enemyHit = true;
             enemy.damage?.(this.attackDamage, this.x, this.y);
             spawnDamageNumber(enemy.x, enemy.y, this.attackDamage);
 
-            // Fire Slash bonus
+            // 🔥 FIRE SLASH BONUS
             if (this.fireSlashTimer > 0) {
-
-                // Bonus damage
+                // Extra damage
                 enemy.damage?.(2, this.x, this.y);
                 spawnDamageNumber(enemy.x, enemy.y, 2);
 
@@ -622,11 +676,29 @@ export class Player {
                     );
                 }
 
-                // This consumes Fire Slash
+                // Flame slash sprite particle
+                const angleMap = {
+                    up:    -Math.PI / 2,
+                    down:   Math.PI / 2,
+                    left:   Math.PI,
+                    right:  0
+                };
+
+                particles.push(
+                    new SlashParticle(
+                        this.x + attackDir[0] * 18,
+                        this.y + attackDir[1] * 14,
+                        angleMap[this.facing],
+                        "rgba(255,255,255,ALPHA)",
+                        0.25
+                    )
+                );
+
+                // Consume Fire Slash buff
                 this.fireSlashTimer = 0;
             }
 
-            // Blood particles
+            // Blood particles (always)
             for (let i = 0; i < 8; i++) {
                 const angle = Math.random() * Math.PI * 2;
                 const speed = 50 + Math.random() * 100;
@@ -642,20 +714,16 @@ export class Player {
                     )
                 );
             }
-            const angleMap = {
-                up: -Math.PI / 2,
-                down: Math.PI / 2,
-                left: Math.PI,
-                right: 0
-            };
+                }
+        // FIRE SLASH ACTIVATION (even on miss)
+        if (this.fireSlashTimer > 0) {
+            this.fireSlashTimer = 0;                     // consume
+            this.fireSlashActive = true;
+            this.fireSlashAnimTime = this.fireSlashDuration;
+            this.fireSlashFacing = this.facing;
+            this.fireSlashFrame = 0;
 
-            particles.push(new SlashParticle(
-                this.x + attackDir[0] * 18,
-                this.y + attackDir[1] * 14,
-                angleMap[this.facing],
-                "rgba(255,255,255,ALPHA)",
-                0.2
-            ));
+            console.log("Fire Slash animation triggered!");
         }
     }
 
@@ -664,10 +732,9 @@ export class Player {
     // ======================================================
     draw(ctx, dt) {
         let frameY = 0;
-
-        if (this.facing === "up") frameY = 0;
-        if (this.facing === "left") frameY = 1;
-        if (this.facing === "down") frameY = 2;
+        if (this.facing === "up")    frameY = 0;
+        if (this.facing === "left")  frameY = 1;
+        if (this.facing === "down")  frameY = 2;
         if (this.facing === "right") frameY = 3;
 
         if (!playerImage.complete) return;
@@ -676,12 +743,12 @@ export class Player {
             this.animating = true;
             this.frameTimer += dt;
             if (this.frameTimer > this.frameInterval) {
-                this.frame = (this.frame + 1) % 8; // 8 walking frames
+                this.frame = (this.frame + 1) % 8;
                 this.frameTimer = 0;
             }
         } else {
             this.animating = false;
-            this.frame = 0; // idle frame
+            this.frame = 0;
         }
 
         // Frost Pulse ring
@@ -694,38 +761,70 @@ export class Player {
             ctx.stroke();
         }
 
-        // Fire Slash aura
+        // Fire Slash aura (shows buff is armed)
         if (this.fireSlashTimer > 0) {
             ctx.beginPath();
             ctx.arc(this.x, this.y, 20, 0, Math.PI * 2);
-            ctx.strokeStyle = "rgba(255, 100, 0, 0.5)";
+            ctx.strokeStyle = "rgba(200, 100, 0, 0.5)";
             ctx.lineWidth = 3;
             ctx.stroke();
+        }
+
+        // =========================
+        // FIRE SLASH VISUAL
+        // =========================
+        if (this.fireSlashActive) {
+            const FRAME_SIZE = 32;
+            const row = 8; // your Fire Slash row in Mary.png
+            const sx = this.fireSlashFrame * FRAME_SIZE;
+            const sy = row * FRAME_SIZE;
+
+            let offsetX = 0, offsetY = 0;
+
+            if (this.fireSlashFacing === "up")    offsetY = -20;
+            if (this.fireSlashFacing === "down")  offsetY = 20;
+            if (this.fireSlashFacing === "left")  offsetX = -20;
+            if (this.fireSlashFacing === "right") offsetX = 20;
+
+            ctx.drawImage(
+                playerImage,
+                sx, sy, FRAME_SIZE, FRAME_SIZE,
+                this.x - 16 + offsetX,
+                this.y - 16 + offsetY,
+                FRAME_SIZE, FRAME_SIZE
+            );
         }
 
         ctx.drawImage(
             playerImage,
             this.frame * this.frameWidth, frameY * this.frameHeight,
             this.frameWidth, this.frameHeight,
-            this.x - this.frameWidth / 2, this.y - this.frameHeight / 2,
+            this.x - this.frameWidth / 2,
+            this.y - this.frameHeight / 2,
             this.frameWidth, this.frameHeight
         );
     }
 
+    // ======================================================
+    // DASH AFTERIMAGE
+    // ======================================================
     spawnDashAfterimage() {
-        particles.push(
-            new Particle(
-                this.x,
-                this.y,
-                0,
-                0,
-                0.25, // lifespan
-                "rgba(255,255,255,ALPHA)", // color fades to transparent
-                0,
-                this.frame,        // store player's frame
-                this.facing        // store player's facing
-            )
+        const p = new Particle(
+            this.x,
+            this.y,
+            0,
+            0,
+            0.25,
+            "rgba(255,255,255,ALPHA)",
+            0
         );
+
+        // Store the sprite frame + facing so Particle.draw()
+        // renders a ghost of the player instead of a circle
+        p.frame = this.frame;
+        p.facing = this.facing;
+
+        particles.push(p);
     }
 }
 

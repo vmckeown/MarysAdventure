@@ -19,7 +19,6 @@ export class Particle {
     }
 
     draw(ctx) {
-        // PLAYER AFTERIMAGE DASH TRAIL
         if (this.frame !== undefined && this.facing !== undefined) {
             const frameWidth = 32;
             const frameHeight = 33;
@@ -87,7 +86,7 @@ export class SlashParticle {
         this.frameInterval = 0.05; // animation speed
 
         this.frameWidth = 32;
-        this.frameHeight = 32;
+        this.frameHeight = 33;
     }
 
     update(dt) {
