@@ -11,14 +11,12 @@ import { spawnDamageNumber } from "./damageNumbers.js";
 export const playerImage = new Image();
 playerImage.src = "./pics/Mary.png";
 
-// Row index (0-based) of the 4-frame generic slash animation on Mary.png.
-// This is used by SlashParticle; Fire Slash uses rows 8–11 per facing.
-export const FIRE_SLASH_ROW = 8;
+// (Optional) generic slash row if your SlashParticle uses the sprite sheet
+export const GENERIC_SLASH_ROW = 8;
 
 // ======================================================
 // SPIRIT DART SYSTEM
 // ======================================================
-
 export const spiritDarts = [];
 
 class SpiritDart {
@@ -32,10 +30,10 @@ class SpiritDart {
 
         this.facingDir = facingDir;
         const dirToRow = {
-            up: 4,     // row 5 of Mary.png
-            left: 5,   // row 6
-            down: 6,   // row 7
-            right: 7   // row 8
+            up: 4,    // row 5 of Mary.png
+            left: 5,  // row 6
+            down: 6,  // row 7
+            right: 7  // row 8
         };
         this.rowIndex = dirToRow[this.facingDir];
 
@@ -126,7 +124,6 @@ class SpiritDart {
 // ======================================================
 // PLAYER CLASS
 // ======================================================
-
 export class Player {
     constructor(tileX, tileY) {
         this.x = tileX * TILE_SIZE + TILE_SIZE / 2;
@@ -502,10 +499,10 @@ export class Player {
         if (this.potionCooldown > 0) this.potionCooldown -= dt;
 
         // Movement facing
-        if (keys["w"] || keys["ArrowUp"])  { this.facing = "up";    this.isMoving = true; }
+        if (keys["w"] || keys["ArrowUp"])   { this.facing = "up";    this.isMoving = true; }
         if (keys["s"] || keys["ArrowDown"]) { this.facing = "down";  this.isMoving = true; }
         if (keys["a"] || keys["ArrowLeft"]) { this.facing = "left";  this.isMoving = true; }
-        if (keys["d"] || keys["ArrowRight"]) { this.facing = "right"; this.isMoving = true; }
+        if (keys["d"] || keys["ArrowRight"]){ this.facing = "right"; this.isMoving = true; }
 
         // ATTACK
         if (wasKeyPressed(" ")) this.attack(ctx);
@@ -620,117 +617,187 @@ export class Player {
 
         const attackDir = {
             up: [0, -1],
-            down: [0, 1],
+            down: [0,  1],
             left: [-1, 0],
-            right: [1, 0]
+            right: [1,  0]
         }[this.facing];
 
-        // =====================================================
-        // FIRE SLASH ALWAYS TRIGGERS VISUAL — EVEN ON MISS
-        // =====================================================
+        // Fire Slash: consume buff and start animation, EVEN IF WE MISS
         let usingFireSlash = false;
         if (this.fireSlashReady) {
-            this.fireSlashReady = false;               // consume buff
+            this.fireSlashReady = false;
             this.fireSlashAttackTime = this.fireSlashAttackDuration;
             this.fireSlashAttackFrame = 0;
-            this.fireSlashAttackFacing = this.facing;  // store direction
+            this.fireSlashAttackFacing = this.facing;
             usingFireSlash = true;
+        }
 
-            // ⭐ ALWAYS draw slash VFX (even on miss)
-            const fireSlashRowMap = { up: 8, left: 9, down: 10, right: 11 };
-            const angleMap = { up: -Math.PI/2, down: Math.PI/2, left: Math.PI, right: 0 };
+        // Deal damage to enemies in front arc
+        for (const enemy of enemies) {
+            const dx = enemy.x - this.x;
+            const dy = enemy.y - this.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist > this.attackRange) continue;
 
-            const row = fireSlashRowMap[this.facing];
-            console.log("FIRE SLASH ROW (on press):", row);
+            const dot = (dx * attackDir[0] + dy * attackDir[1]) / dist;
+            if (dot < Math.cos(this.attackAngle)) continue;
 
-            particles.push(new SlashParticle(
-                this.x + attackDir[0] * 18,
-                this.y + attackDir[1] * 14,
-                angleMap[this.facing],
-                "rgba(255,255,255,ALPHA)",
-                0.2,
-                row
-            ));
+            // Base hit
+            enemy.damage?.(this.attackDamage, this.x, this.y);
+            spawnDamageNumber(enemy.x, enemy.y, this.attackDamage);
+
+            // Extra Fire Slash damage & burn if buff was active
+            if (usingFireSlash) {
+                enemy.damage?.(2, this.x, this.y);
+                spawnDamageNumber(enemy.x, enemy.y, 2);
+
+                enemy.burnTimer = 1.5;
+                enemy.burnTick = 0;
+
+                // Fire burst particles
+                for (let i = 0; i < 15; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 40 + Math.random() * 80;
+
+                    particles.push(
+                        new Particle(
+                            enemy.x,
+                            enemy.y,
+                            Math.cos(angle) * speed,
+                            Math.sin(angle) * speed,
+                            0.4,
+                            "rgba(255,100,20,ALPHA)",
+                            3
+                        )
+                    );
+                }
+            }
+
+            // Generic white slash swoosh in front of player
+            const angleMap = {
+                up:   -Math.PI / 2,
+                down:  Math.PI / 2,
+                left:  Math.PI,
+                right: 0
+            };
+
+            particles.push(
+                new SlashParticle(
+                    this.x + attackDir[0] * 18,
+                    this.y + attackDir[1] * 14,
+                    angleMap[this.facing],
+                    "rgba(255,255,255,ALPHA)",
+                    0.2
+                )
+            );
         }
     }
 
+    // ======================================================
+    // DRAW PLAYER
+    // ======================================================
+    draw(ctx, dt) {
+        let frameY = 0;
+        if (this.facing === "up")    frameY = 0;
+        if (this.facing === "left")  frameY = 1;
+        if (this.facing === "down")  frameY = 2;
+        if (this.facing === "right") frameY = 3;
 
-        // ======================================================
-        // DRAW PLAYER
-        // ======================================================
-        draw(ctx, dt) {
-            let frameY = 0;
-            if (this.facing === "up")    frameY = 0;
-            if (this.facing === "left")  frameY = 1;
-            if (this.facing === "down")  frameY = 2;
-            if (this.facing === "right") frameY = 3;
+        if (!playerImage.complete) return;
 
-            if (!playerImage.complete) return;
-
-            if (this.isMoving) {
-                this.animating = true;
-                this.frameTimer += dt;
-                if (this.frameTimer > this.frameInterval) {
-                    this.frame = (this.frame + 1) % 8;
-                    this.frameTimer = 0;
-                }
-            } else {
-                this.animating = false;
-                this.frame = 0;
+        if (this.isMoving) {
+            this.animating = true;
+            this.frameTimer += dt;
+            if (this.frameTimer > this.frameInterval) {
+                this.frame = (this.frame + 1) % 8;
+                this.frameTimer = 0;
             }
+        } else {
+            this.animating = false;
+            this.frame = 0;
+        }
 
-            // Frost Pulse ring
-            if (this.frostPulseActive > 0) {
-                const alpha = this.frostPulseActive / 0.4;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, 120, 0, Math.PI * 2);
-                ctx.strokeStyle = `rgba(150,200,255,${alpha})`;
-                ctx.lineWidth = 6;
-                ctx.stroke();
-            }
+        // Frost Pulse ring
+        if (this.frostPulseActive > 0) {
+            const alpha = this.frostPulseActive / 0.4;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 120, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(150,200,255,${alpha})`;
+            ctx.lineWidth = 6;
+            ctx.stroke();
+        }
 
-            // Small aura when Fire Slash is ready
-            if (this.fireSlashReady) {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, 20, 0, Math.PI * 2);
-                ctx.strokeStyle = "rgba(255, 120, 0, 0.5)";
-                ctx.lineWidth = 3;
-                ctx.stroke();
-            }
+        // Small aura when Fire Slash is ready
+        if (this.fireSlashReady) {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 20, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(255, 120, 0, 0.5)";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
 
+        // Draw Fire Slash animation if an empowered attack was just used
+        if (this.fireSlashAttackTime > 0) {
+            const rowMap = {
+                up: 8,
+                left: 9,
+                down: 10,
+                right: 11
+            };
+            const row = rowMap[this.fireSlashAttackFacing];
 
-            // Draw Mary herself
+            const sx = this.fireSlashAttackFrame * 32;
+            const sy = row * 33; 
+
+            const offsetMap = {
+                up:    { x: 0,   y: -20 },
+                down:  { x: 0,   y: 20 },
+                left:  { x: -20, y: 0 },
+                right: { x: 20,  y: 0 }
+            };
+            const off = offsetMap[this.fireSlashAttackFacing];
+
             ctx.drawImage(
                 playerImage,
-                this.frame * this.frameWidth, frameY * this.frameHeight,
-                this.frameWidth, this.frameHeight,
-                this.x - this.frameWidth / 2,
-                this.y - this.frameHeight / 2,
-                this.frameWidth, this.frameHeight
+                sx, sy, 32, 33,
+                this.x - 16 + off.x,
+                this.y - 16 + off.y,
+                32, 33
             );
         }
 
-        // ======================================================
-        // DASH AFTERIMAGE
-        // ======================================================
-        spawnDashAfterimage() {
-            const p = new Particle(
-                this.x,
-                this.y,
-                0,
-                0,
-                0.25,
-                "rgba(255,255,255,ALPHA)",
-                0
-            );
-
-            // Store the sprite frame + facing so Particle.draw()
-            // renders a ghost of the player instead of a circle
-            p.frame = this.frame;
-            p.facing = this.facing;
-
-            particles.push(p);
-        }
+        // Draw Mary herself
+        ctx.drawImage(
+            playerImage,
+            this.frame * this.frameWidth, frameY * this.frameHeight,
+            this.frameWidth, this.frameHeight,
+            this.x - this.frameWidth / 2,
+            this.y - this.frameHeight / 2,
+            this.frameWidth, this.frameHeight
+        );
     }
+
+    // ======================================================
+    // DASH AFTERIMAGE
+    // ======================================================
+    spawnDashAfterimage() {
+        const p = new Particle(
+            this.x,
+            this.y,
+            0,
+            0,
+            0.25,
+            "rgba(255,255,255,ALPHA)",
+            0
+        );
+
+        // Store the sprite frame + facing so Particle.draw()
+        // renders a ghost of the player instead of a circle
+        p.frame = this.frame;
+        p.facing = this.facing;
+
+        particles.push(p);
+    }
+}
 
 export const player = new Player(5, 5);
