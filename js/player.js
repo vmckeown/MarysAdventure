@@ -2,7 +2,7 @@
 import { isColliding, TILE_SIZE } from "./world.js";
 import { keys, wasKeyPressed } from "./input.js";
 import { enemies } from "./enemy.js";
-import { particles, Particle, SlashParticle } from "./particles.js";
+import { particles, Particle, SlashParticle, FireSlashParticle, LightningDashParticle } from "./particles.js";
 import { spawnDamageNumber } from "./damageNumbers.js";
 
 // ======================================================
@@ -178,7 +178,8 @@ export class Player {
             echoSense: 0,
             spiritPulse: 0,
             frostPulse: 0,
-            windStep: 0
+            windStep: 0,
+            lightningDash: 0
         };
 
         // Visual timers
@@ -302,6 +303,80 @@ export class Player {
             )
         );
     }
+
+    //---------------------------------------------------------
+    // LIGHTNING DASH (Thunder Step)
+    //---------------------------------------------------------
+    useLightningDash() {
+        if (this.cooldowns.lightningDash > 0) return;
+        if (this.spirit < 20) return;
+
+        this.spirit -= 20;
+        this.regenTimer = 0;
+        this.cooldowns.lightningDash = 4;
+
+        console.log("⚡ Lightning Dash!");
+
+        const dashDistance = 160;
+
+        const dirMap = {
+            up:    [0, -1],
+            down:  [0, 1],
+            left:  [-1, 0],
+            right: [1, 0]
+        };
+
+        const [dx, dy] = dirMap[this.facing];
+
+        // ─────────────────────────────
+        //  LIGHTNING VFX PARTICLES
+        // ─────────────────────────────
+        for (let i = 0; i < 6; i++) {
+            const spread = (Math.random() - 0.5) * 10;
+
+            particles.push(new LightningDashParticle(
+                this.x + dx * 10 + spread,
+                this.y + dy * 10 + spread,
+                this.facing
+            ));
+            console.log("Particles pushed")
+        }
+
+        // ─────────────────────────────
+        //   Instant movement
+        // ─────────────────────────────
+        this.x += dx * dashDistance;
+        this.y += dy * dashDistance;
+
+        // Little spark at end
+        particles.push(new LightningDashParticle(this.x, this.y, this.facing));
+    }
+
+    spawnLightningDashVFX() {
+        const offsets = [
+            {x: 0, y: -20},  // up
+            {x: 0, y: 20},   // down
+            {x: -20, y: 0},  // left
+            {x: 20, y: 0},   // right
+        ];
+
+        let dirIndex = 0;
+        if (this.facing === "up") dirIndex = 0;
+        if (this.facing === "down") dirIndex = 1;
+        if (this.facing === "left") dirIndex = 2;
+        if (this.facing === "right") dirIndex = 3;
+
+        const off = offsets[dirIndex];
+
+        particles.push(new LightningDashParticle(
+            this.x + off.x,
+            this.y + off.y,
+            this.facing
+        ));
+    }
+
+
+
 
     // ======================================================
     // POTION
@@ -526,6 +601,8 @@ export class Player {
         if (wasKeyPressed("f")) this.useSpiritPulse(ctx);
         if (wasKeyPressed("g")) this.useFireSlash();
         if (wasKeyPressed("r")) this.useFrostPulse();
+        if (wasKeyPressed("e")) this.useLightningDash(ctx);
+
 
         // Regen
         this.regenTimer += dt;
@@ -556,6 +633,31 @@ export class Player {
 
             this.dashTimer -= dt;
         }
+
+        // LIGHTNING DASH MOVEMENT
+        if (this.lightningDashTimer > 0) {
+            this.x += this.lightningDashVelocity.x * dt;
+            this.y += this.lightningDashVelocity.y * dt;
+
+            // Damage + paralyze enemies you pass through
+            for (const enemy of enemies) {
+                const dist = Math.hypot(enemy.x - this.x, enemy.y - this.y);
+                if (dist < 25) {
+                    enemy.damage?.(3, this.x, this.y);
+                    enemy.paralyzeTimer = 0.4;
+
+                    // Lightning impact particle
+                    particles.spawnLightningHit(enemy.x, enemy.y);
+                }
+            }
+
+            // Trail VFX
+            particles.spawnLightningTrail(this.x, this.y);
+
+            this.lightningDashTimer -= dt;
+            return; // skip normal movement during dash
+        }
+
 
         // Fire Slash per-attack animation timer
         if (this.fireSlashAttackTime > 0) {

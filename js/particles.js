@@ -236,4 +236,102 @@ export class FireSlashParticle extends BaseParticle {
     }
 }
 
+//---------------------------------------------------------
+// LIGHTNING PARTICLE HELPERS
+//---------------------------------------------------------
+particles.spawnLightningBurst = function(x, y) {
+    for (let i = 0; i < 12; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const speed = 80 + Math.random() * 80;
+        particles.push(new Particle(
+            x, y,
+            Math.cos(ang) * speed,
+            Math.sin(ang) * speed,
+            0.25,
+            "rgba(120,180,255,ALPHA)",
+            3
+        ));
+    }
+};
+
+particles.spawnLightningTrail = function(x, y) {
+    particles.push(new Particle(
+        x, y,
+        (Math.random() - 0.5) * 10,
+        (Math.random() - 0.5) * 10,
+        0.15,
+        "rgba(180,220,255,ALPHA)",
+        2
+    ));
+};
+
+particles.spawnLightningHit = function(x, y) {
+    for (let i = 0; i < 6; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const speed = 60 + Math.random() * 40;
+        particles.push(new Particle(
+            x, y,
+            Math.cos(ang) * speed,
+            Math.sin(ang) * speed,
+            0.2,
+            "rgba(255,255,255,ALPHA)",
+            3
+        ));
+    }
+};
+
+
+// LIGHTNING DASH PARTICLE
+
+export class LightningDashParticle extends BaseParticle {
+    constructor(x, y, facing) {
+        super(x, y, 0.20, "rgba(255,255,255,ALPHA)", 0); // FIXED
+
+        this.frameWidth = 32;
+        this.frameHeight = 33;
+
+        this.frame = 0;
+        this.frameTimer = 0;
+        this.frameInterval = 0.05;
+
+        const rowMap = {
+            up:    12,
+            left:  13,
+            down:  14,
+            right: 15
+        };
+
+        this.row = rowMap[facing] ?? 12;
+
+        console.log("⚡ LightningDashParticle created — row:", this.row);
+    }
+
+    update(dt) {
+        super.update(dt);
+        if (this.remove) return;
+
+        this.frameTimer += dt;
+        if (this.frameTimer >= this.frameInterval) {
+            this.frameTimer = 0;
+            this.frame = (this.frame + 1) % 4;
+        }
+    }
+
+    draw(ctx) {
+        if (!playerImage.complete) return;
+
+        const sx = this.frame * this.frameWidth;
+        const sy = this.row * this.frameHeight;
+
+        ctx.drawImage(
+            playerImage,
+            sx, sy,
+            this.frameWidth, this.frameHeight,
+            this.x - this.frameWidth / 2,
+            this.y - this.frameHeight / 2,
+            this.frameWidth, this.frameHeight
+        );
+    }
+}
+
 
