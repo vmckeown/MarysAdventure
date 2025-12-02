@@ -215,6 +215,7 @@ export class FireSlashParticle extends BaseParticle {
 
     draw(ctx) {
         if (!playerImage.complete) return;
+        if (!this.target) return;
 
         ctx.save();
         ctx.translate(this.x, this.y);

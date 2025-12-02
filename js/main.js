@@ -18,6 +18,7 @@ import { Graphics } from "./graphics.js";
 import { isTileSolid, findPath } from "./pathfinding.js";
 import { updateParticles, drawParticles } from "./particles.js";
 import { updateDamageNumbers, drawDamageNumbers } from "./damageNumbers.js";
+import { items } from "./items.js";
 
 export const WIDTH = 800;
 export const HEIGHT = 600;
@@ -165,6 +166,7 @@ function update(dt) {
     }
     handleAttack(dt);
     updateNPCs(dt);
+    for (const it of items) it.update(dt);
     for (const e of enemies) {
       e.update(dt, player, worldToTile, pathfinder);
     }
@@ -279,6 +281,7 @@ function render(dt) {
     //drawObjects(ctx, camera, objects);
     // All world geometry & entities first
     drawEntities(deltaTime);
+    for (const it of items) it.draw(ctx);
 
     // Slash should always be ABOVE player
     drawParticles(ctx);

@@ -1,5 +1,6 @@
 import { getTile, TILE_SIZE, SOLID_TILES, WORLD_COLS,  WORLD_ROWS } from "./world.js";
 
+
 // ===== PATHFINDING (A*) =====
 export function findPath(start, goal) {
     // Prevent running if start or goal are invalid

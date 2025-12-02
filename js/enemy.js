@@ -3,6 +3,8 @@ import {player} from "./player.js";
 import {findPath,isTileSolid} from "./pathfinding.js";
 import {worldToTile} from "./world.js";
 import {spawnDamageNumber } from "./damageNumbers.js";
+import { Item, items } from "./items.js";
+
 
 
 export const enemies = [];
@@ -359,6 +361,14 @@ export class Enemy {
         this.alive = false;
         this.state = ENEMY_STATE.DEAD;
         player.gainXP(10);
+        // 20% chance to drop an item
+        if (Math.random() < 0.35) {
+            const kinds = ["health", "spirit", "stamina"];
+            const drop = kinds[Math.floor(Math.random() * kinds.length)];
+
+            items.push(new Item(this.x, this.y, drop));
+            console.log("Item: " + drop)
+        }
     }
 
     draw(ctx) {
