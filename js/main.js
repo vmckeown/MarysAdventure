@@ -170,6 +170,21 @@ function update(dt) {
     for (const e of enemies) {
       e.update(dt, player, worldToTile, pathfinder);
     }
+    for (const item of items) {
+        item.update(dt);
+
+        // Check pickup
+        const dist = Math.hypot(player.x - item.x, player.y - item.y);
+        if (dist < 22) {            // pickup radius
+            player.pickUpItem(item);
+            item.collected = true;
+        }
+    }
+    for (let i = items.length - 1; i >= 0; i--) {
+        if (items[i].collected) items.splice(i, 1);
+    }
+
+
     updateXPOrbs(dt);
     updateParticles(dt);
     for (const dart of spiritDarts) dart.update(dt);
@@ -378,6 +393,11 @@ function render(dt) {
             ctx.stroke();
         }
     }
+
+    for (const item of items) {
+        item.draw(ctx);
+    }
+
 
     ctx.restore();
     drawUI();

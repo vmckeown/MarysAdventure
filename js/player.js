@@ -398,6 +398,19 @@ export class Player {
         ));
     }
 
+    pickUpItem(item) {
+        if (item.type === "health") {
+            this.health = Math.min(this.maxHealth, this.health + 2);
+        }
+        else if (item.type === "stamina") {
+            this.stamina = Math.min(this.maxStamina, this.stamina + 20);
+        }
+        else if (item.type === "spirit") {
+            this.spirit = Math.min(this.maxSpirit, this.spirit + 20);
+        }
+
+        console.log("Picked up:", item.type);
+    }
 
 
 

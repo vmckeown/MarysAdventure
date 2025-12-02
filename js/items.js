@@ -19,15 +19,14 @@ export class Item {
 
         this.alive = true;
 
-        // TEMP placeholder graphic positions
         const itemRows = {
-            health: 0,
-            spirit: 0,
-            stamina: 0
+            "stamina": 0,
+            "health": 1,
+            "spirit": 2
         };
 
-        this.row = itemRows[type] || 16;
-        this.size = 18;
+        this.row = itemRows[type] || 0;
+        this.size = 2;
     }
 
     update(dt) {
@@ -43,8 +42,8 @@ export class Item {
         const sy = this.row * 33;
 
         ctx.drawImage(
-            itemSprite, // TEMP — later you’ll have real icons
-            0, 0, 32, 32,
+            itemSprite,
+            sx, sy, 32, 32,
             this.x - 16,
             this.y - 16,
             32, 32

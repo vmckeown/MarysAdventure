@@ -361,8 +361,8 @@ export class Enemy {
         this.alive = false;
         this.state = ENEMY_STATE.DEAD;
         player.gainXP(10);
-        // 20% chance to drop an item
-        if (Math.random() < 0.35) {
+
+        if (Math.random() < 0.85) {
             const kinds = ["health", "spirit", "stamina"];
             const drop = kinds[Math.floor(Math.random() * kinds.length)];
 
