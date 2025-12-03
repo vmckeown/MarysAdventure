@@ -22,7 +22,9 @@ export class Item {
         const itemRows = {
             "stamina": 0,
             "health": 1,
-            "spirit": 2
+            "spirit": 2,
+            "gold": 3,
+            "buffCrystal": 4
         };
 
         this.row = itemRows[type] || 0;

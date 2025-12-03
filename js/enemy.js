@@ -363,7 +363,7 @@ export class Enemy {
         player.gainXP(10);
 
         if (Math.random() < 0.85) {
-            const kinds = ["health", "spirit", "stamina"];
+            const kinds = ["health", "spirit", "stamina", "gold", "buffCrystal"];
             const drop = kinds[Math.floor(Math.random() * kinds.length)];
 
             items.push(new Item(this.x, this.y, drop));

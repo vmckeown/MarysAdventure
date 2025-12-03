@@ -84,28 +84,7 @@ class SpiritDart {
             this.y += this.vy * dt;
         }
 
-        // ITEM PICKUP
-        for (let i = items.length - 1; i >= 0; i--) {
-            const it = items[i];
-            const dist = Math.hypot(this.x - it.x, this.y - it.y);
-
-            if (dist < 25) {
-                if (it.type === "health") {
-                    this.health = Math.min(this.maxHealth, this.health + 1);
-                }
-                if (it.type === "spirit") {
-                    this.spirit = Math.min(this.maxSpirit, this.spirit + 10);
-                }
-                if (it.type === "stamina") {
-                    this.stamina = Math.min(this.maxStamina, this.stamina + 10);
-                }
-
-                it.alive = false;
-                items.splice(i, 1);
-                console.log("Picked up: " + it.type);
-            }
-        }
-
+        
         // COLLISION WITH ENEMIES
         for (const enemy of enemies) {
             const dist = Math.hypot(enemy.x - this.x, enemy.y - this.y);
@@ -399,20 +378,33 @@ export class Player {
     }
 
     pickUpItem(item) {
-        if (item.type === "health") {
-            this.health = Math.min(this.maxHealth, this.health + 2);
-        }
-        else if (item.type === "stamina") {
-            this.stamina = Math.min(this.maxStamina, this.stamina + 20);
-        }
-        else if (item.type === "spirit") {
-            this.spirit = Math.min(this.maxSpirit, this.spirit + 20);
-        }
+        for (let i = items.length - 1; i >= 0; i--) {
+            const it = items[i];
+            const dist = Math.hypot(this.x - it.x, this.y - it.y);
 
-        console.log("Picked up:", item.type);
+            if (dist < 25) {
+                if (it.type === "health") {
+                    this.health = Math.min(this.maxHealth, this.health + 1);
+                }
+                if (it.type === "spirit") {
+                    this.spirit = Math.min(this.maxSpirit, this.spirit + 10);
+                }
+                if (it.type === "stamina") {
+                    this.stamina = Math.min(this.maxStamina, this.stamina + 10);
+                }
+                if (it.type === "gold") {
+                    this.gold = this.gold + 5;
+                }
+                if (it.type === "buffCrystal") {
+                  //  this.stamina = Math.min(this.maxStamina, this.stamina + 10);
+                }
+
+                it.alive = false;
+                items.splice(i, 1);
+                console.log("Picked up: " + it.type);
+            }
+        }
     }
-
-
 
     // ======================================================
     // POTION

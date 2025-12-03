@@ -155,6 +155,14 @@ export class SlashParticle extends BaseParticle {
         ctx.save();
         ctx.globalAlpha = this.alpha();
 
+        if (!playerImage.complete) return;
+        if (!this.target) return;
+        if(!this.owner){
+            this.alive = false;
+            return;
+        }
+        if(!this.sprite) return;
+
         ctx.drawImage(
             playerImage,
             sx, sy,
@@ -216,6 +224,11 @@ export class FireSlashParticle extends BaseParticle {
     draw(ctx) {
         if (!playerImage.complete) return;
         if (!this.target) return;
+        if(!this.owner){
+            this.alive = false;
+            return;
+        }
+        if(!this.sprite) return;
 
         ctx.save();
         ctx.translate(this.x, this.y);
