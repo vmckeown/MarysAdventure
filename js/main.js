@@ -16,6 +16,8 @@ import { Enemy, enemies, spawnEnemy, updateEnemies, ENEMY_STATE } from "./enemy.
 import { NPC, setupNPCs } from "./npc.js";
 import { setupInput, keys, wasKeyPressed } from "./input.js";
 import { Graphics } from "./graphics.js";
+import { updateIceBolts, drawIceBolts } from "./iceBolt.js";
+
 
 export const WIDTH = 800;
 export const HEIGHT = 600;
@@ -132,7 +134,8 @@ function gameLoop(timestamp) {
 // ===== Update =====
 function update(dt) {
   player.update(dt, keys, npcs, objects, ctx);
-  handleAttack(dt);
+  updateIceBolts(dt);
+  handleAttack(dt, npcs, objects);
   updateNPCs(dt);
   updateEnemies(dt, player)
   /*for (const e of enemies) {
@@ -343,6 +346,7 @@ function render() {
       ctx.stroke();
     }
   }
+  drawIceBolts(ctx);
 
   ctx.restore();
   drawUI();

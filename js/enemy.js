@@ -1,10 +1,14 @@
 let activeAttackers = 0;
 const MAX_ATTACKERS = 2;
+const goblinImage = new Image();
+goblinImage.src = "./pics/Goblin.png";
+
 
 import {TILE_SIZE} from "./world.js";
 import {player} from "./player.js";
 import {findPath} from "./pathfinding.js";
 import {worldToTile} from "./world.js";
+
 
 export const enemies = [];
 
@@ -55,6 +59,11 @@ export class Enemy {
 
         const a = ENEMY_ARCHETYPES[type];
         this.type = type;
+        this.sprite = null;
+
+        if (this.type === "coward") {
+            this.sprite = goblinImage;
+        }
 
         this.speed = a.speed;
         this.courage = a.courage;
@@ -566,9 +575,13 @@ export class Enemy {
         }
 
 
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
-        ctx.fill();
+        if (this.sprite) {
+            ctx.drawImage(this.sprite, Math.floor(this.x - 16), Math.floor(this.y - 16), 32, 32);
+        } else {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
         // Debug: draw path
         if (this.path && this.path.length > 0) {
