@@ -171,6 +171,9 @@ export class Player {
   }
 
   update(dt, keys, npcs, objects, ctx) {
+    this._npcs = npcs;
+    this._objects = objects;
+
     if (this.invulnTimer > 0) this.invulnTimer -= dt;
 
     // Movement – facing only (actual movement in handleMovement)
@@ -302,16 +305,20 @@ export class Player {
   }
 
   applyKnockback(dt) {
-    const nextX = this.x + this.knockbackX * dt;
-    const nextY = this.y + this.knockbackY * dt;
+      const nextX = this.x + this.knockbackX * dt;
+      const nextY = this.y + this.knockbackY * dt;
 
-    // Again, pass size not the whole player object
-    if (!isColliding(nextX, this.y, this.size, npcs, objects)) this.x = nextX;
-    if (!isColliding(this.x, nextY, this.size, npcs, objects)) this.y = nextY;
+      if (!isColliding(nextX, nextY, this, this._npcs, this._objects)) {
+          this.x = nextX;
+      }
 
-    this.knockbackTimer -= dt;
-    this.knockbackX *= 0.85;
-    this.knockbackY *= 0.85;
+      if (!isColliding(nextX, nextY, this, this._npcs, this._objects)) {
+          this.y = nextY;
+      }
+
+      this.knockbackTimer -= dt;
+      this.knockbackX *= 0.85;
+      this.knockbackY *= 0.85;
   }
 
   damage(amount, sourceX = null, sourceY = null) {

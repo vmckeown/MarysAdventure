@@ -134,9 +134,10 @@ function update(dt) {
   player.update(dt, keys, npcs, objects, ctx);
   handleAttack(dt);
   updateNPCs(dt);
-  for (const e of enemies) {
+  updateEnemies(dt, player)
+  /*for (const e of enemies) {
     e.update(dt, player);
-  }
+  }*/
   updateXPOrbs(dt);
   updateCamera(dt);
   //handleInteractions();
