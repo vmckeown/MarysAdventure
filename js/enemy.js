@@ -16,18 +16,59 @@ export const ENEMY_STATE = {
     DEAD: "dead"
 };
 
+const ENEMY_ARCHETYPES = {
+    brute: {
+        speed: 55,
+        courage: 1.2,
+        hesitationChance: 0.002,
+        retreatHealthThreshold: 0,
+        attackCooldown: 0.6,
+        meleeRange: 36,
+        color: "#005511"
+    },
+    skirmisher: {
+        speed: 65,
+        courage: 1.0,
+        hesitationChance: 0.005,
+        retreatHealthThreshold: 1,
+        attackCooldown: 0.8,
+        meleeRange: 32,
+        color: "#555555"
+    },
+    coward: {
+        speed: 70,
+        courage: 0.6,
+        hesitationChance: 0.01,
+        retreatHealthThreshold: 2,
+        attackCooldown: 1.2,
+        meleeRange: 28,
+        color: "#ff0000"
+    }
+};
+
+
 
 export class Enemy {
-    constructor(tileX, tileY) {
+    constructor(tileX, tileY, type = "skirmisher") {
         this.x = tileX * TILE_SIZE + TILE_SIZE / 2;
         this.y = tileY * TILE_SIZE + TILE_SIZE / 2;
+
+        const a = ENEMY_ARCHETYPES[type];
+        this.type = type;
+
+        this.speed = a.speed;
+        this.courage = a.courage;
+        this.retreatHealthThreshold = a.retreatHealthThreshold;
+        this.attackCooldown = a.attackCooldown;
+        this.meleeRange = a.meleeRange;
+
+        this.hesitationChance = a.hesitationChance;
 
         this.targetX = this.x;
         this.targetY = this.y;
 
         this.size = 28;
-        this.color = "#ff0000";
-        this.speed = 60;
+        this.color = a.color;
         this.health = 3;
         this.alive = true;
         this.state = ENEMY_STATE.PATROL;
@@ -69,7 +110,6 @@ export class Enemy {
         this.aggroCooldown = 0;
 
         // Melee spacing
-        this.meleeRange = 32; // distance to stop from player
         this.meleeBuffer = 4; // prevents jitter
         
         // Anti-stacking
@@ -80,7 +120,6 @@ export class Enemy {
         // Attack system
         this.attackRange = this.meleeRange; // reuse spacing
         this.attackWindup = 0.35; // seconds before hit
-        this.attackCooldown = 0; // seconds between attacks
         this.attackDelay = 0.8;
 
         this.attackTimer = 0;
@@ -93,12 +132,6 @@ export class Enemy {
 
         // Hesitation
         this.hesitationTimer = 0;
-
-        // Courage / fear
-        this.courage = Math.random() * 0.5 + 0.75; // 0.75–1.25
-
-        // Retreat
-        this.retreatHealthThreshold = 1;
 
         // Flanking
         this.flankBias = Math.random() < 0.5 ? -1 : 1;
@@ -360,19 +393,20 @@ export class Enemy {
                     this.searchPath = findPath(start, goal);
                     this.searchPathIndex = 0;
                 }
-
+                
                 if (this.searchPath && this.searchPathIndex < this.searchPath.length) {
                     const next = this.searchPath[this.searchPathIndex];
+
                     const wx = next.x * TILE_SIZE + TILE_SIZE / 2;
                     const wy = next.y * TILE_SIZE + TILE_SIZE / 2;
 
-                    dx = wx - this.x;
-                    dy = wy - this.y;
-                    const dist = Math.hypot(dx, dy);
+                    const sdx = wx - this.x;
+                    const sdy = wy - this.y;
+                    const dist = Math.hypot(sdx, sdy);
 
                     if (dist > 2) {
-                        this.x += (dx / dist) * this.speed * dt;
-                        this.y += (dy / dist) * this.speed * dt;
+                        this.x += (sdx / dist) * this.speed * dt;
+                        this.y += (sdy / dist) * this.speed * dt;
                     } else {
                         this.searchPathIndex++;
                     }
@@ -523,10 +557,14 @@ export class Enemy {
     draw(ctx) {
         if (!this.alive) return;
 
-        ctx.fillStyle =
-            this.state === ENEMY_STATE.CHASE ? "#ff5555" :
-            this.state === ENEMY_STATE.PATROL ? "#ffaa00" :
-            "#888888";
+        ctx.fillStyle = this.color;
+
+        if (this.state === ENEMY_STATE.CHASE) {
+            ctx.strokeStyle = "#ff0000";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
 
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
@@ -563,8 +601,8 @@ export class Enemy {
 // =====================================
 // ENEMY MANAGER
 // =====================================
-export function spawnEnemy(tileX, tileY) {
-    enemies.push(new Enemy(tileX, tileY));
+export function spawnEnemy(tileX, tileY, type) {
+    enemies.push(new Enemy(tileX, tileY, type));
 }
 
 export function updateEnemies(dt) {

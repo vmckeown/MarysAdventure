@@ -67,9 +67,9 @@ function init() {
   npcs = setupNPCs();
 
   // New enemy system: spawn enemies via enemy.js
-  spawnEnemy(12, 12);
-  spawnEnemy(18, 6);
-  spawnEnemy(22, 12);
+  spawnEnemy(12, 12, "brute");
+  spawnEnemy(18, 6, "coward");
+  spawnEnemy(22, 12, "skirmisher");
   setupInput();
 
   requestAnimationFrame(gameLoop);
