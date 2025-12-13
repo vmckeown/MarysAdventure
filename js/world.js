@@ -68,7 +68,7 @@ export const worldMap = [
     [ 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,20, 4, 4, 4, 4, 5],
 ];
 
-/*export function setupWorld() {
+export function setupWorld() {
     world.length = 0;
 
     for (let y = 0; y < WORLD_ROWS; y++) {
@@ -82,7 +82,7 @@ export const worldMap = [
         }
         world.push(row);
     }
-}*/
+}
 
 export function updateWorldAnimation(dt) {
     animationTimer += dt;

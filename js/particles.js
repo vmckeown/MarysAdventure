@@ -176,10 +176,6 @@ export class SlashParticle extends BaseParticle {
     }
 }
 
-// ==========================================================
-// MAIN UPDATE + DRAW LOOP
-// ==========================================================
-
 export function updateParticles(dt) {
     for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
@@ -194,9 +190,6 @@ export function drawParticles(ctx) {
     }
 }
 
-// ======================================================
-// FIRE SLASH PARTICLE  (4-frame directional slash VFX)
-// ======================================================
 export class FireSlashParticle extends BaseParticle {
     constructor(x, y, angle, duration, spriteRow) {
         super(x, y, 0, 0, duration, "rgba(255,255,255,ALPHA)", 0);
