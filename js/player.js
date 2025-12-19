@@ -1,6 +1,5 @@
 // player.js
 import { isColliding, TILE_SIZE } from "./world.js";
-import { keys, wasKeyPressed } from "./input.js";
 import { spawnIceBolt } from "./iceBolt.js";
 
 const maryImage = new Image();
@@ -51,9 +50,14 @@ export class Player {
     this.xpToNext = 100;
     this.health = 5;
     this.maxHealth = 5;
-    
-    this.hp = 10;
-    this.maxHp = 10;
+    this.displayXP = this.xp;
+
+    this.isDead = false;
+    this.deathTimer = 0;
+    this.deathDuration = 1.2; // seconds before respawn
+    this.respawnX = this.x;
+    this.respawnY = this.y;
+
 
     this.stamina = 50;
     this.maxStamina = 50;
@@ -61,19 +65,50 @@ export class Player {
     this.spirit = 50;
     this.maxSpirit = 50;
 
+    // Hit reaction
+    this.hitStunTimer = 0;
+    this.hitStunDuration = 0.25; // seconds
+    this.knockbackX = 0;
+    this.knockbackY = 0;
+
+    this.inventory = [];
+    this.inventorySize = 12; // 3x4 grid later
+    this.isInventoryOpen = false;
+
+    for (let i = 0; i < this.inventorySize; i++) {
+      this.inventory.push(null);
+    }
   }
 
   update(dt, npcs, objects) {
-    // 🔑 INPUT FIRST
-    if (this.state === PLAYER_STATE.NORMAL && wasKeyPressed("e")) {
-      this.startIceBolt();
+    if (this.isDead) {
+      this.deathTimer -= dt;
+
+      if (this.deathTimer <= 0) {
+        this.respawn();
+      }
+
+      return; // skip movement, input, attacks
+    }
+
+    if (this.hitStunTimer > 0) {
+      this.hitStunTimer -= dt;
+
+      // Apply knockback
+      this.x += this.knockbackX * dt;
+      this.y += this.knockbackY * dt;
+
+      // Decay knockback
+      this.knockbackX *= 0.85;
+      this.knockbackY *= 0.85;
+
+      return; // skip input while stunned
     }
 
     if (this.state === PLAYER_STATE.CASTING_ICE) {
       this.updateIceBolt(dt);
     }
 
-    this.handleMovement(dt, npcs, objects);
     this.updateAnimation(dt);
   }
 
@@ -98,19 +133,23 @@ export class Player {
     }
   }
 
-  handleMovement(dt, npcs, objects) {
-    let mx = 0, my = 0;
+  handleMovementInput(mx, my, dt, npcs, objects) {
+    if (this.isDead || this.state !== PLAYER_STATE.NORMAL) return;
 
-    if (keys["w"]) { my = -1; this.facing = "up"; }
-    if (keys["s"]) { my = 1;  this.facing = "down"; }
-    if (keys["a"]) { mx = -1; this.facing = "left"; }
-    if (keys["d"]) { mx = 1;  this.facing = "right"; }
+    this.isMoving = mx !== 0 || my !== 0;
 
-    this.isMoving = mx || my;
+    if (this.isMoving) {
+      if (Math.abs(mx) > Math.abs(my)) {
+        this.facing = mx > 0 ? "right" : "left";
+      } else {
+        this.facing = my > 0 ? "down" : "up";
+      }
+    }
 
     if (mx && my) {
       const len = Math.hypot(mx, my);
-      mx /= len; my /= len;
+      mx /= len;
+      my /= len;
     }
 
     const nx = this.x + mx * this.speed * dt;
@@ -118,6 +157,87 @@ export class Player {
 
     if (!isColliding(nx, this.y, this.size, npcs, objects)) this.x = nx;
     if (!isColliding(this.x, ny, this.size, npcs, objects)) this.y = ny;
+  }
+
+  startIceCast() {
+    if (this.state !== PLAYER_STATE.NORMAL) return;
+
+    this.state = PLAYER_STATE.CASTING_ICE;
+    this.castTimer = 0;
+    this.spawnedBolt = false;
+  }
+
+
+
+  damage(amount, sourceX, sourceY) {
+    if (this.isDead) return;
+
+    this.health = Math.max(0, this.health - amount);
+
+    if (this.health <= 0) {
+      this.die();
+      return;
+    }
+
+    const dx = this.x - sourceX;
+    const dy = this.y - sourceY;
+    const dist = Math.hypot(dx, dy) || 1;
+
+    const force = 140;
+    this.knockbackX = (dx / dist) * force;
+    this.knockbackY = (dy / dist) * force;
+
+    this.hitStunTimer = this.hitStunDuration;
+  }
+
+
+  die() {
+    this.isDead = true;
+    this.deathTimer = this.deathDuration;
+
+    // Stop movement
+    this.velocityX = 0;
+    this.velocityY = 0;
+
+    console.log("Player died");
+  }
+
+  respawn() {
+    this.isDead = false;
+    this.health = this.maxHealth;
+    this.stamina = this.maxStamina;
+    this.spirit = this.maxSpirit;
+
+    this.x = this.respawnX;
+    this.y = this.respawnY;
+
+    console.log("Player respawned");
+  }
+
+
+  gainXP(amount) {
+    this.xp += amount;
+
+    // Level up check
+    while (this.xp >= this.xpToNext) {
+      this.xp -= this.xpToNext;
+      this.levelUp();
+    }
+  }
+
+  levelUp() {
+    this.level++;
+    this.xpToNext = Math.floor(this.xpToNext * 1.35);
+
+    // Basic stat growth
+    this.maxHealth += 1;
+    this.health = this.maxHealth;
+
+    this.maxStamina += 5;
+    this.stamina = this.maxStamina;
+    this.displayXP = this.xp;
+
+    console.log(`⬆️ Level Up! Now level ${this.level}`);
   }
 
   updateAnimation(dt) {
@@ -150,4 +270,3 @@ export class Player {
   }
 }
 
-export const player = new Player(5, 5);

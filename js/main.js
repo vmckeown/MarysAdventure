@@ -8,21 +8,23 @@
 // ===== Global Variables =====
 
 import {setupWorld,isColliding,TILE_SIZE,WORLD_COLS,WORLD_ROWS,BACKGROUND_COLOR,drawWorld} from "./world.js";
-
-import { player } from "./player.js";
-window.player = player;
-
 import { Enemy, enemies, spawnEnemy, updateEnemies, ENEMY_STATE } from "./enemy.js";
 import { NPC, setupNPCs } from "./npc.js";
 import { setupInput, keys, wasKeyPressed } from "./input.js";
 import { Graphics } from "./graphics.js";
 import { updateIceBolts, drawIceBolts } from "./iceBolt.js";
+import { drawInventory } from "./inventory.js";
+import { items, Item } from "./items.js";
+import { Player } from "./player.js";
 
+
+let player;
 
 export const WIDTH = 800;
 export const HEIGHT = 600;
 
 let canvas, ctx;
+let deathFade = 0;
 
 window.addEventListener("DOMContentLoaded", () => {
   canvas = document.getElementById("gameCanvas");
@@ -65,22 +67,36 @@ function init() {
   setupInput();
   setupWorld();
 
-  //setupObjects();
+  // ✅ CREATE PLAYER INSTANCE HERE
+  player = new Player(5, 5);
+  window.player = player; // optional, for debugging only
+
   npcs = setupNPCs();
 
-  // New enemy system: spawn enemies via enemy.js
   spawnEnemy(12, 12, "brute");
   spawnEnemy(18, 6, "coward");
   spawnEnemy(22, 12, "skirmisher");
-  setupInput();
+
+  items.push(new Item(400, 300, "health"));
 
   requestAnimationFrame(gameLoop);
+}
+
+
+if (wasKeyPressed("i")) {
+  player.isInventoryOpen = !player.isInventoryOpen;
 }
 
 // Combat
 let attackCooldown = 0;
 const ATTACK_RANGE = 50;
 const ATTACK_COOLDOWN_TIME = 0.5; // seconds
+
+function updateItems(dt) {
+  for (const item of items) {
+    item.update(dt);
+  }
+}
 
 function updateXPOrbs(dt) {
   for (const orb of xpOrbs) {
@@ -109,8 +125,11 @@ function updateXPOrbs(dt) {
         effects.push({
           type: "xpBurst",
           x: player.x,
-          y: player.y,
-          timer: 0.3,
+          y: player.y - 10,
+          value: orb.value,
+          vy: -30,      // upward speed
+          alpha: 1,
+          timer: 0.8,
         });
       }
     }
@@ -133,14 +152,70 @@ function gameLoop(timestamp) {
 
 // ===== Update =====
 function update(dt) {
-  player.update(dt, keys, npcs, objects, ctx);
+  player.update(dt);
+  if (player.isDead) {
+    deathFade = Math.min(1, deathFade + dt * 1.5);
+  } else {
+    deathFade = Math.max(0, deathFade - dt * 2);
+  }
+
+  // ===== INPUT ROUTING =====
+  let mx = 0;
+  let my = 0;
+
+  if (!player.isDead && !player.isInventoryOpen) {
+    if (keys["w"] || keys["ArrowUp"]) my -= 1;
+    if (keys["s"] || keys["ArrowDown"]) my += 1;
+    if (keys["a"] || keys["ArrowLeft"]) mx -= 1;
+    if (keys["d"] || keys["ArrowRight"]) mx += 1;
+
+    player.handleMovementInput(mx, my, dt);
+
+    if (wasKeyPressed("e")) {
+      player.startIceCast();
+    }
+
+    if (keys[" "] || keys["Space"]) {
+      handleAttack(dt);
+    }
+  }
+
+  if (!player.isInventoryOpen && !player.isDead) {
+    updateItems(dt);
+  }
+
+  // UI input (always allowed)
+  if (wasKeyPressed("i")) {
+    player.isInventoryOpen = !player.isInventoryOpen;
+  }
+
   updateIceBolts(dt);
   handleAttack(dt, npcs, objects);
   updateNPCs(dt);
-  updateEnemies(dt, player)
-  /*for (const e of enemies) {
-    e.update(dt, player);
-  }*/
+  //updateEnemies(dt, player)
+  const xpFromEnemies = updateEnemies(dt, player);
+
+  if (!player.isInventoryOpen && !player.isDead) {
+    updateIceBolts(dt);
+    handleAttack(dt, npcs, objects);
+    updateNPCs(dt);
+
+    const xpFromEnemies = updateEnemies(dt);
+    if (xpFromEnemies > 0) {
+      player.gainXP(xpFromEnemies);
+      effects.push({
+        type: "xpText",
+        x: player.x,
+        y: player.y - 20,
+        value: xpFromEnemies,
+        vy: -30,
+        alpha: 1,
+       timer: 0.8,
+      });
+    }
+  }
+
+  handleItemPickup();
   updateXPOrbs(dt);
   updateCamera(dt);
   //handleInteractions();
@@ -221,6 +296,44 @@ function handleAttack(dt) {
   }
 }
 
+function pickupItem(worldItem) {
+  const inventoryItem = {
+    type: worldItem.type,
+    name: worldItem.type.toUpperCase()
+  };
+
+  const added = player.addItem(inventoryItem);
+
+  if (added) {
+    effects.push({
+      type: "xpText",
+      x: player.x,
+      y: player.y - 20,
+      value: inventoryItem.name,
+      vy: -20,
+      alpha: 1,
+      timer: 0.8,
+    });
+  }
+}
+
+
+function handleItemPickup() {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i];
+
+    const dx = player.x - item.x;
+    const dy = player.y - item.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist < 16 + player.size / 2) {
+      pickupItem(item);
+      items.splice(i, 1);
+    }
+  }
+}
+
+
 // ===== Camera (Smooth Follow) =====
 function updateCamera(dt) {
   const targetX = player.x - camera.width / 2;
@@ -252,6 +365,11 @@ function render() {
   drawWorld(ctx, camera);
   //drawObjects(ctx, camera, objects);
   drawEntities();
+
+  for (const item of items) {
+    item.draw(ctx);
+  }
+
   drawEffects();
 
   // ===== DEBUG: Draw Enemy Paths =====
@@ -350,6 +468,19 @@ function render() {
 
   ctx.restore();
   drawUI();
+
+  if (player.isInventoryOpen) {
+    drawInventory(ctx, canvas, player);
+  }
+
+  if (deathFade > 0) {
+    ctx.save();
+    ctx.globalAlpha = deathFade;
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+  }
+
 }
 
 // ===== Draw Entities =====
@@ -388,6 +519,7 @@ function drawEntities() {
 
 function drawEffects() {
   for (const fx of effects) {
+
     if (fx.type === "xpBurst") {
       const alpha = fx.timer / 0.3;
       ctx.beginPath();
@@ -397,62 +529,114 @@ function drawEffects() {
       ctx.stroke();
       fx.timer -= deltaTime;
     }
+
+    // --- Floating XP text ---
+    if (fx.type === "xpText") {
+      fx.y += fx.vy * deltaTime;
+      fx.alpha = fx.timer / 0.8;
+
+      ctx.save();
+      ctx.globalAlpha = fx.alpha;
+      ctx.fillStyle = "#66ccff";
+      ctx.font = "bold 14px monospace";
+      ctx.fillText(`+${fx.value} XP`, fx.x - 12, fx.y);
+      ctx.restore();
+
+      fx.timer -= deltaTime;
+    }
   }
-  effects = effects.filter((fx) => fx.timer > 0);
+
+  effects = effects.filter(fx => fx.timer > 0);
 }
+
 
 // ===== UI Layer =====
 function drawUI() {
-  ctx.save();
-  ctx.fillStyle = "#fff";
-  ctx.font = "14px monospace";
-
-  // --- Player Info ---
-  ctx.fillText(`Player: (${Math.floor(player.x)}, ${Math.floor(player.y)})`, 20, 20);
-  ctx.fillText(`Level: ${player.level}`, 20, 45);
-  ctx.fillText(`XP: ${Math.floor(player.xp)}/${player.xpToNext}`, 20, 65);
-
-  // --- Health Bar ---
   const barWidth = 200;
   const barHeight = 14;
-  let y = 85; // start position for first bar
 
-  // Health
+  ctx.save();
+
+  // --- UI background panel ---
+  ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+  ctx.fillRect(10, 10, 300, 160);
+  ctx.strokeStyle = "#888";
+  ctx.strokeRect(10, 10, 300, 160);
+
+  ctx.font = "14px monospace";
+
+  let y = 40;
+
+  // --- Level ---
+  ctx.fillStyle = "#ccc";
+  ctx.fillText("Level", 20, y);
+  ctx.fillStyle = "#fff";
+  ctx.fillText(`${player.level}`, 80, y);
+
+  // --- XP text ---
+  y += 20;
+  ctx.fillStyle = "#ccc";
+  ctx.fillText("XP", 20, y);
+  ctx.fillStyle = "#fff";
+  ctx.fillText(`${Math.floor(player.xp)}/${player.xpToNext}`, 80, y);
+
+  // --- XP bar ---
+  y += 10;
   ctx.strokeStyle = "#fff";
-  ctx.lineWidth = 2;
   ctx.strokeRect(20, y, barWidth, barHeight);
+
+  // Smooth XP animation
+  const xpLerpSpeed = 8; // higher = faster animation
+  player.displayXP += (player.xp - player.displayXP) * Math.min(1, xpLerpSpeed * deltaTime);
+
+  const xpRatio = Math.min(1, player.displayXP / player.xpToNext);
+
+  ctx.fillStyle = "#66ccff";
+  ctx.fillRect(20, y, barWidth * xpRatio, barHeight);
+
+  // --- Health ---
+  y += 30;
+  ctx.strokeStyle = "#fff";
+  ctx.strokeRect(20, y, barWidth, barHeight);
+
   const healthRatio = Math.max(0, player.health / player.maxHealth);
   ctx.fillStyle =
-    healthRatio > 0.5 ? "#00ff00" : healthRatio > 0.25 ? "#ffff00" : "#ff0000";
+    healthRatio > 0.5 ? "#00ff00" :
+    healthRatio > 0.25 ? "#ffff00" :
+    "#ff0000";
+
   ctx.fillRect(20, y, barWidth * healthRatio, barHeight);
   ctx.fillStyle = "#fff";
   ctx.fillText(`HP: ${player.health}/${player.maxHealth}`, 230, y + 12);
 
-  // --- Stamina Bar ---
+  // --- Stamina ---
   y += 25;
   ctx.strokeStyle = "#fff";
   ctx.strokeRect(20, y, barWidth, barHeight);
+
   const staminaRatio = Math.max(0, player.stamina / player.maxStamina);
   ctx.fillStyle = "#00ff88";
   ctx.fillRect(20, y, barWidth * staminaRatio, barHeight);
   ctx.fillStyle = "#fff";
-  ctx.fillText(`Stamina`, 230, y + 12);
+  ctx.fillText("Stamina", 230, y + 12);
 
-  // --- Spirit Bar ---
+  // --- Spirit ---
   y += 25;
   ctx.strokeStyle = "#fff";
   ctx.strokeRect(20, y, barWidth, barHeight);
+
   const spiritRatio = Math.max(0, player.spirit / player.maxSpirit);
   ctx.fillStyle = "#66aaff";
   ctx.fillRect(20, y, barWidth * spiritRatio, barHeight);
   ctx.fillStyle = "#fff";
-  ctx.fillText(`Spirit`, 230, y + 12);
+  ctx.fillText("Spirit", 230, y + 12);
 
-  // --- Dialogue Box (if active) ---
+  // --- Dialogue ---
   if (activeDialogue) drawDialogueBox(activeDialogue);
 
   ctx.restore();
 }
+
 
 function handleInteractions() {
   // Check if player is near any NPC
