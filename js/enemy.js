@@ -13,7 +13,7 @@ orcBruteImage.src = "./pics/OrcBrute.png";
 import {TILE_SIZE} from "./world.js";
 import {findPath} from "./pathfinding.js";
 import {worldToTile} from "./world.js";
-
+import { items, Item } from "./items.js";
 
 export const enemies = [];
 
@@ -584,6 +584,13 @@ export class Enemy {
         const force = 80;
         this.knockbackX = (dx / dist) * force;
         this.knockbackY = (dy / dist) * force;
+
+        // Drop chance
+        if (Math.random() < 0.6) {
+            items.push(
+            new Item(this.x, this.y, "health")
+            );
+        }
 
         return 10; // XP value
     }

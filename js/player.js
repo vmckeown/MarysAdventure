@@ -167,6 +167,30 @@ export class Player {
     this.spawnedBolt = false;
   }
 
+  addItem(item) {
+    for (let i = 0; i < this.inventory.length; i++) {
+      if (this.inventory[i] === null) {
+        this.inventory[i] = item;
+        return true;
+      }
+    }
+    return false; // inventory full
+  }
+
+  useItem(slotIndex) {
+    const item = this.inventory[slotIndex];
+    if (!item) return false;
+
+    if (typeof item.use === "function") {
+      const consumed = item.use(this);
+      if (consumed) {
+        this.inventory[slotIndex] = null;
+      }
+      return true;
+    }
+
+    return false;
+  }
 
 
   damage(amount, sourceX, sourceY) {

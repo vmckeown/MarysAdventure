@@ -13,10 +13,9 @@ import { NPC, setupNPCs } from "./npc.js";
 import { setupInput, keys, wasKeyPressed } from "./input.js";
 import { Graphics } from "./graphics.js";
 import { updateIceBolts, drawIceBolts } from "./iceBolt.js";
-import { drawInventory } from "./inventory.js";
-import { items, Item } from "./items.js";
+import { drawInventory, updateInventoryCursor, inventoryCursor} from "./inventory.js";
+import { items, Item, ITEM_DEFS} from "./items.js";
 import { Player } from "./player.js";
-
 
 let player;
 
@@ -83,10 +82,6 @@ function init() {
 }
 
 
-if (wasKeyPressed("i")) {
-  player.isInventoryOpen = !player.isInventoryOpen;
-}
-
 // Combat
 let attackCooldown = 0;
 const ATTACK_RANGE = 50;
@@ -96,6 +91,16 @@ function updateItems(dt) {
   for (const item of items) {
     item.update(dt);
   }
+}
+
+function getInventoryInput() {
+  return {
+    left: keys["a"] || keys["ArrowLeft"],
+    right: keys["d"] || keys["ArrowRight"],
+    up: keys["w"] || keys["ArrowUp"],
+    down: keys["s"] || keys["ArrowDown"],
+    confirm: wasKeyPressed("Enter") || wasKeyPressed(" ")
+  };
 }
 
 function updateXPOrbs(dt) {
@@ -159,6 +164,18 @@ function update(dt) {
     deathFade = Math.max(0, deathFade - dt * 2);
   }
 
+  if (player.isInventoryOpen) {
+    const input = getInventoryInput();
+    updateInventoryCursor(dt, input);
+
+    if (input.confirm) {
+      player.useItem(inventoryCursor);
+    }
+
+    return; // pause game while inventory open
+  }
+
+
   // ===== INPUT ROUTING =====
   let mx = 0;
   let my = 0;
@@ -184,10 +201,17 @@ function update(dt) {
     updateItems(dt);
   }
 
+  if (player.isInventoryOpen && !player.isDead) {
+    if (wasKeyPressed("1")) {
+        player.useItem(0);
+    }
+  }
+
   // UI input (always allowed)
   if (wasKeyPressed("i")) {
     player.isInventoryOpen = !player.isInventoryOpen;
   }
+
 
   updateIceBolts(dt);
   handleAttack(dt, npcs, objects);
@@ -216,6 +240,7 @@ function update(dt) {
   }
 
   handleItemPickup();
+  updateItemPickup(player);
   updateXPOrbs(dt);
   updateCamera(dt);
   //handleInteractions();
@@ -235,6 +260,28 @@ function updateNPCs(dt) {
     if (!isColliding(nextY, npc.x, 32, npcs, objects)) npc.y = nextY;
   }
 }
+
+function updateItemPickup(player) {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i];
+
+    const dx = player.x - item.x;
+    const dy = player.y - item.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist < player.size / 2 + 16) {
+      const pickedUp = player.addItem({
+        type: item.type,
+        name: item.type
+      });
+
+      if (pickedUp) {
+        items.splice(i, 1);
+      }
+    }
+  }
+}
+
 
 // ===== Combat System =====
 function handleAttack(dt) {
@@ -320,19 +367,33 @@ function pickupItem(worldItem) {
 
 function handleItemPickup() {
   for (let i = items.length - 1; i >= 0; i--) {
-    const item = items[i];
+    const worldItem = items[i];
 
-    const dx = player.x - item.x;
-    const dy = player.y - item.y;
+    const dx = player.x - worldItem.x;
+    const dy = player.y - worldItem.y;
     const dist = Math.hypot(dx, dy);
 
-    if (dist < 16 + player.size / 2) {
-      pickupItem(item);
-      items.splice(i, 1);
+    if (dist < player.size / 2 + 16) {
+      const def = ITEM_DEFS[worldItem.type];
+      if (!def) continue;
+
+      const added = player.addItem(def);
+      if (added) {
+        items.splice(i, 1);
+
+        effects.push({
+          type: "xpText",
+          x: player.x,
+          y: player.y - 20,
+          value: def.name,
+          vy: -20,
+          alpha: 1,
+          timer: 0.8
+        });
+      }
     }
   }
 }
-
 
 // ===== Camera (Smooth Follow) =====
 function updateCamera(dt) {

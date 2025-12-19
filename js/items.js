@@ -52,3 +52,60 @@ export class Item {
         );
     }
 }
+
+export const ITEM_DEFS = {
+  health: {
+    name: "Health Potion",
+    icon: healingPotionImg,
+    use(player) {
+      const healAmount = 3;
+      player.health = Math.min(
+        player.maxHealth,
+        player.health + healAmount
+      );
+      return true; // consumed
+    }
+  },
+
+  stamina: {
+    name: "Stamina Potion",
+    use(player) {
+      const amount = 10;
+      player.stamina = Math.min(
+        player.maxStamina,
+        player.stamina + amount
+      );
+      return true;
+    }
+  },
+
+  spirit: {
+    name: "Spirit Potion",
+    use(player) {
+      const amount = 10;
+      player.spirit = Math.min(
+        player.maxSpirit,
+        player.spirit + amount
+      );
+      return true;
+    }
+  },
+
+  gold: {
+    name: "Gold",
+    use(player) {
+      player.gold = (player.gold || 0) + 1;
+      return true;
+    }
+  },
+
+  buffCrystal: {
+    name: "Buff Crystal",
+    use(player) {
+      player.maxHealth += 1;
+      player.health = player.maxHealth;
+      return true;
+    }
+  }
+};
+
