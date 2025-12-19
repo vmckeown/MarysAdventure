@@ -1,3 +1,5 @@
+import { itemSprite } from "./items.js";
+
 export let inventoryCursor = 0;
 
 const GRID_COLS = 4;
@@ -82,9 +84,17 @@ export function drawInventory(ctx, canvas, player) {
 
     // Item placeholder
     const item = player.inventory[i];
-    if (item) {
-      ctx.fillStyle = "#ccc";
-      ctx.fillText(item.name[0], sx + 18, sy + 30);
+    if (item && item.spriteRow !== undefined) {
+      ctx.drawImage(
+        itemSprite,
+        0,                       // frame 0 ONLY (no animation)
+        item.spriteRow * 33,     // correct row from ITEM_DEFS
+        32, 32,
+        sx + 8,
+        sy + 8,
+        slotSize - 16,
+        slotSize - 16
+      );
     }
   }
 
@@ -107,5 +117,92 @@ export function drawInventory(ctx, canvas, player) {
   ctx.strokeRect(cx - 2, cy - 2, slotSize + 4, slotSize + 4);
 
   ctx.restore();
+
+  const selectedItem = player.inventory[inventoryCursor];
+  if (selectedItem && selectedItem.description) {
+    const tooltipWidth = 220;
+
+    let tooltipX = x + panelWidth + 10;
+    let tooltipY = y + 40;
+
+    // Clamp tooltip to screen
+    if (tooltipX + tooltipWidth > canvas.width) {
+      tooltipX = x - tooltipWidth - 10;
+    }
+
+    drawItemTooltip(ctx, tooltipX, tooltipY, selectedItem, canvas);
+  }
 }
+
+function wrapText(ctx, text, maxWidth) {
+  const words = text.split(" ");
+  const lines = [];
+  let line = "";
+
+  for (let i = 0; i < words.length; i++) {
+    const testLine = line + words[i] + " ";
+    const metrics = ctx.measureText(testLine);
+
+    if (metrics.width > maxWidth && line !== "") {
+      lines.push(line.trim());
+      line = words[i] + " ";
+    } else {
+      line = testLine;
+    }
+  }
+
+  if (line) {
+    lines.push(line.trim());
+  }
+
+  return lines;
+}
+
+
+function drawItemTooltip(ctx, x, y, item, canvas) {
+  const padding = 8;
+  const maxWidth = 240;
+  const lineHeight = 16;
+
+  ctx.font = "14px monospace";
+
+  // Wrap description text
+  const descriptionLines = wrapText(
+    ctx,
+    item.description,
+    maxWidth - padding * 2
+  );
+
+  const lines = [
+    { text: item.name, color: "#ffffaa" },
+    ...descriptionLines.map(t => ({ text: t, color: "#ddd" }))
+  ];
+
+  const height =
+    padding * 2 + lines.length * lineHeight;
+
+  // Clamp Y (just in case)
+  if (y + height > canvas.height) {
+    y = canvas.height - height - 10;
+  }
+
+  // Background
+  ctx.fillStyle = "rgba(0,0,0,0.92)";
+  ctx.fillRect(x, y, maxWidth, height);
+
+  ctx.strokeStyle = "#aaa";
+  ctx.strokeRect(x, y, maxWidth, height);
+
+  // Text
+  lines.forEach((line, i) => {
+    ctx.fillStyle = line.color;
+    ctx.fillText(
+      line.text,
+      x + padding+10,
+      y + padding + lineHeight * (i + 1)
+    );
+  });
+}
+
+
 

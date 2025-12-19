@@ -157,12 +157,11 @@ function gameLoop(timestamp) {
 
 // ===== Update =====
 function update(dt) {
-  player.update(dt);
-  if (player.isDead) {
-    deathFade = Math.min(1, deathFade + dt * 1.5);
-  } else {
-    deathFade = Math.max(0, deathFade - dt * 2);
+  if (wasKeyPressed("i")) {
+    player.isInventoryOpen = !player.isInventoryOpen;
   }
+
+  player.update(dt);
 
   if (player.isInventoryOpen) {
     const input = getInventoryInput();
@@ -174,6 +173,13 @@ function update(dt) {
 
     return; // pause game while inventory open
   }
+
+  if (player.isDead) {
+    deathFade = Math.min(1, deathFade + dt * 1.5);
+  } else {
+    deathFade = Math.max(0, deathFade - dt * 2);
+  }
+
 
 
   // ===== INPUT ROUTING =====
@@ -207,10 +213,7 @@ function update(dt) {
     }
   }
 
-  // UI input (always allowed)
-  if (wasKeyPressed("i")) {
-    player.isInventoryOpen = !player.isInventoryOpen;
-  }
+
 
 
   updateIceBolts(dt);

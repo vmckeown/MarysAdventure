@@ -7,6 +7,14 @@ itemSprite.src = "./pics/itemDrops.png";
 
 export const items = [];
 
+export const ITEM_ROWS = {
+  stamina: 0,
+  health: 1,
+  spirit: 2,
+  gold: 3,
+  buffCrystal: 4
+};
+
 export class Item {
     constructor(x, y, type) {
         this.x = x;
@@ -39,36 +47,39 @@ export class Item {
         }
     }
 
-    draw(ctx) {
-        const sx = this.frame * 32;
-        const sy = this.row * 33;
+   draw(ctx) {
+    const sx = this.frame * 32;
+    const sy = this.row * 33;
 
-        ctx.drawImage(
-            itemSprite,
-            sx, sy, 32, 32,
-            this.x - 16,
-            this.y - 16,
-            32, 32
-        );
-    }
+    ctx.drawImage(
+      itemSprite,
+      sx, sy, 32, 32,
+      this.x - 16,
+      this.y - 16,
+      32, 32
+    );
+  }
 }
 
 export const ITEM_DEFS = {
   health: {
     name: "Health Potion",
-    icon: healingPotionImg,
+    description: "Restores a small amount of health.",
+    spriteRow: ITEM_ROWS.health,
     use(player) {
       const healAmount = 3;
       player.health = Math.min(
         player.maxHealth,
         player.health + healAmount
       );
-      return true; // consumed
+      return true;
     }
   },
 
   stamina: {
     name: "Stamina Potion",
+    description: "Replenishes stamina used for movement and combat.",
+    spriteRow: ITEM_ROWS.stamina,
     use(player) {
       const amount = 10;
       player.stamina = Math.min(
@@ -81,6 +92,8 @@ export const ITEM_DEFS = {
 
   spirit: {
     name: "Spirit Potion",
+    description: "Restores spirit energy for magical abilities.",
+    spriteRow: ITEM_ROWS.spirit,
     use(player) {
       const amount = 10;
       player.spirit = Math.min(
@@ -93,6 +106,8 @@ export const ITEM_DEFS = {
 
   gold: {
     name: "Gold",
+    description: "A small amount of currency used for trade.",
+    spriteRow: ITEM_ROWS.gold,
     use(player) {
       player.gold = (player.gold || 0) + 1;
       return true;
@@ -101,6 +116,8 @@ export const ITEM_DEFS = {
 
   buffCrystal: {
     name: "Buff Crystal",
+    description: "Permanently increases maximum health.",
+    spriteRow: ITEM_ROWS.buffCrystal,
     use(player) {
       player.maxHealth += 1;
       player.health = player.maxHealth;
