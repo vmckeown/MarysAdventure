@@ -7,7 +7,7 @@
 
 // ===== Global Variables =====
 
-import {setupWorld,isColliding,TILE_SIZE,WORLD_COLS,WORLD_ROWS,BACKGROUND_COLOR,drawWorld} from "./world.js";
+import {setupWorld,isColliding,TILE_SIZE,WORLD_COLS,WORLD_ROWS,BACKGROUND_COLOR,drawWorld, updateWorldAnimation} from "./world.js";
 import { Enemy, enemies, spawnEnemy, updateEnemies, ENEMY_STATE } from "./enemy.js";
 import { NPC, setupNPCs } from "./npc.js";
 import { setupInput, keys, wasKeyPressed } from "./input.js";
@@ -16,6 +16,120 @@ import { updateIceBolts, drawIceBolts } from "./iceBolt.js";
 import { drawInventory, updateInventoryCursor, inventoryCursor} from "./inventory.js";
 import { items, Item, ITEM_DEFS} from "./items.js";
 import { Player } from "./player.js";
+import { backgroundImage } from "./world.js"; // or wherever it lives
+import { Tree, TREE_TYPES } from "./tree.js";
+import { House } from "./house.js";
+
+export const houses = [];
+
+function spawnTreeCluster(cx, cy, offsets, type) {
+  return offsets.map(([dx, dy]) =>
+    new Tree(cx + dx, cy + dy, TREE_TYPES[type])
+  );
+}
+
+function spawnTreeArea({
+  xMin,
+  xMax,
+  yMin,
+  yMax,
+  count,
+  type,
+  minSpacing = 24
+  }) {
+  const placed = [];
+
+  let attempts = 0;
+  const MAX_ATTEMPTS = count * 10;
+
+  while (placed.length < count && attempts < MAX_ATTEMPTS) {
+    attempts++;
+
+    const x = Math.random() * (xMax - xMin) + xMin;
+    const y = Math.random() * (yMax - yMin) + yMin;
+
+    // Prevent clumping
+    let tooClose = false;
+    for (const t of placed) {
+      const dx = t.x - x;
+      const dy = t.y - y;
+      if (Math.hypot(dx, dy) < minSpacing) {
+        tooClose = true;
+        break;
+      }
+    }
+
+    if (tooClose) continue;
+
+    placed.push(new Tree(x, y, TREE_TYPES[randomTreeType()]));
+  }
+
+  return placed;
+}
+
+const TREE_VARIANTS = ["PineTree1", "PineTree2"];
+
+function randomTreeType() {
+  return TREE_VARIANTS[Math.floor(Math.random() * TREE_VARIANTS.length)];
+}
+
+export const trees = [
+  ...spawnTreeArea({
+    xMin: 50,
+    xMax: 450,
+    yMin: 0,
+    yMax: 400,
+    count: 200,
+    type: "PineTree1"
+  }),
+
+  ...spawnTreeArea({
+    xMin: 750,
+    xMax: 1300,
+    yMin: 0,
+    yMax: 450,
+    count: 200,
+    type: "PineTree1"
+  }),
+
+  ...spawnTreeArea({
+    xMin: 50,
+    xMax: 550,
+    yMin: 400,
+    yMax: 1000,
+    count: 200,
+    type: "PineTree2"
+  }),
+
+  
+  ...spawnTreeArea({
+    xMin: 750,
+    xMax: 900,
+    yMin: 450,
+    yMax: 1000,
+    count: 50,
+    type: "PineTree1"
+  }),
+
+    ...spawnTreeArea({
+    xMin: 50,
+    xMax: 500,
+    yMin: 1000,
+    yMax: 1460,
+    count: 100,
+    type: "PineTree2"
+  }),
+
+  ...spawnTreeArea({
+    xMin: 750,
+    xMax: 1600,
+    yMin: 1000,
+    yMax: 1500,
+    count: 100,
+    type: "PineTree1"
+  }),
+
+];
 
 let player;
 
@@ -67,7 +181,7 @@ function init() {
   setupWorld();
 
   // ✅ CREATE PLAYER INSTANCE HERE
-  player = new Player(5, 5);
+  player = new Player(3, 46);
   window.player = player; // optional, for debugging only
 
   npcs = setupNPCs();
@@ -75,6 +189,13 @@ function init() {
   spawnEnemy(12, 12, "brute");
   spawnEnemy(18, 6, "coward");
   spawnEnemy(22, 12, "skirmisher");
+
+  houses.push(
+    new House(1000, 600, {
+      spriteX: 0,
+      spriteY: 0
+    })
+  );
 
   items.push(new Item(400, 300, "health"));
 
@@ -157,6 +278,8 @@ function gameLoop(timestamp) {
 
 // ===== Update =====
 function update(dt) {
+   updateWorldAnimation(dt); 
+
   if (wasKeyPressed("i")) {
     player.isInventoryOpen = !player.isInventoryOpen;
   }
@@ -259,7 +382,6 @@ function updateNPCs(dt) {
     }
 
     const nextY = npc.y + npc.dir * npc.speed * dt;
-    // ✅ isColliding expects (x, y)
     if (!isColliding(nextY, npc.x, 32, npcs, objects)) npc.y = nextY;
   }
 }
@@ -418,6 +540,41 @@ function updateCamera(dt) {
 // ===== Input Helper for Single Key Press Detection =====
 let previousKeys = {};
 
+function drawEntitiesSorted() {
+  const renderables = [];
+
+  // Trees
+  for (const tree of trees) {
+    renderables.push(tree);
+  }
+
+  for (const house of houses){
+    renderables.push(house);
+  }
+
+  // Enemies
+  for (const enemy of enemies) {
+    if (enemy.alive) renderables.push(enemy);
+  }
+
+  // NPCs
+  for (const npc of npcs) {
+    renderables.push(npc);
+  }
+
+  // Player
+  renderables.push(player);
+
+  // Sort by Y (depth)
+  renderables.sort((a, b) => a.y - b.y);
+
+  // Draw
+  for (const obj of renderables) {
+    if (obj.draw) obj.draw(ctx);
+  }
+}
+
+
 // ===== Render =====
 function render() {
   ctx.fillStyle = BACKGROUND_COLOR;
@@ -426,10 +583,10 @@ function render() {
   ctx.save();
   ctx.translate(-camera.x, -camera.y);
 
-  drawWorld(ctx, camera);
-  //drawObjects(ctx, camera, objects);
-  drawEntities();
 
+  drawWorld(ctx, camera);
+  drawEntitiesSorted();
+    
   for (const item of items) {
     item.draw(ctx);
   }
@@ -580,6 +737,22 @@ function drawEntities() {
     ctx.fill();
   }
 }
+
+function collidesWithTrees(x, y, size) {
+  for (const tree of trees) {
+    const b = tree.getCollisionBox();
+    if (
+      x + size / 2 > b.x &&
+      x - size / 2 < b.x + b.width &&
+      y + size / 2 > b.y &&
+      y - size / 2 < b.y + b.height
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 
 function drawEffects() {
   for (const fx of effects) {

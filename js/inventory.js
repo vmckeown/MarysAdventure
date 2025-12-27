@@ -158,7 +158,6 @@ function wrapText(ctx, text, maxWidth) {
   return lines;
 }
 
-
 function drawItemTooltip(ctx, x, y, item, canvas) {
   const padding = 8;
   const maxWidth = 240;
