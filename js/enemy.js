@@ -14,6 +14,7 @@ import {TILE_SIZE} from "./world.js";
 import {findPath} from "./pathfinding.js";
 import {worldToTile} from "./world.js";
 import { items, Item } from "./items.js";
+import {triggerDialogue} from "./main.js"
 
 export const enemies = [];
 
@@ -24,6 +25,33 @@ export const ENEMY_STATE = {
     SEARCH: "search",
     DEAD: "dead"
 };
+
+const GOBLIN_TAUNTS = {
+  spotted: [
+    "Hey! You lost?",
+    "This road mine now!",
+    "Big feet make loud noise!",
+    "Hehehe… easy meal!"
+  ],
+  hit: [
+    "HEY!",
+    "That hurt!",
+    "Stop that!",
+    "No fair!"
+  ],
+  death: [
+    "Boss… won’t like this…",
+    "I was almost promoted…",
+    "Ugh..."
+  ]
+};
+
+function randomGoblinTaunt(type) {
+  const list = GOBLIN_TAUNTS[type];
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+
 
 const ENEMY_ARCHETYPES = {
     brute: {
@@ -66,9 +94,11 @@ export class Enemy {
         const a = ENEMY_ARCHETYPES[type];
         this.type = type;
         this.sprite = null;
+        this.hasTaunted = false;
 
         if (this.type === "coward") {
             this.sprite = goblinImage;
+            this.tauntIndex = Math.floor(Math.random() * GOBLIN_TAUNTS.length);
         }
         if (this.type === "skirmisher") {
             this.sprite = orcimage;
@@ -239,6 +269,17 @@ export class Enemy {
                     this.alertNearbyEnemies();
                 }
             }
+
+            if (playerDist < 180 && !this.hasTaunted) {
+                this.hasTaunted = true;
+
+                const taunt = GOBLIN_TAUNTS[this.tauntIndex];
+                triggerDialogue(randomGoblinTaunt("spotted"));
+
+
+                console.log("🗣 Goblin taunt:", taunt);
+            }
+
         } else {
             this.alertTimer = 0;
         }
@@ -431,6 +472,7 @@ export class Enemy {
         // DEATH CHECK (XP SOURCE)
         // =====================================
         if (this.health <= 0) {
+            triggerDialogue(randomGoblinTaunt("death"));
             return this.die(); // 🔑 CRITICAL LINE
         }
 
@@ -549,24 +591,25 @@ export class Enemy {
     // =====================================
 
     damage(amount, sourceX, sourceY) {
-    this.health -= amount;
+        this.health -= amount;
+        triggerDialogue(randomGoblinTaunt("hit"));
 
-    this.showHealthBarTimer = this.healthBarDuration;
+        this.showHealthBarTimer = this.healthBarDuration;
 
-    // Backward-compatible defaults:
-    // if caller didn't pass source coords, fall back to player position
-    if (!Number.isFinite(sourceX)) sourceX = player.x;
-    if (!Number.isFinite(sourceY)) sourceY = player.y;
+        // Backward-compatible defaults:
+        // if caller didn't pass source coords, fall back to player position
+        if (!Number.isFinite(sourceX)) sourceX = player.x;
+        if (!Number.isFinite(sourceY)) sourceY = player.y;
 
-    const dx = this.x - sourceX;
-    const dy = this.y - sourceY;
-    const dist = Math.hypot(dx, dy) || 1;
+        const dx = this.x - sourceX;
+        const dy = this.y - sourceY;
+        const dist = Math.hypot(dx, dy) || 1;
 
-    const force = 90;
-    this.hitKnockbackX = (dx / dist) * force;
-    this.hitKnockbackY = (dy / dist) * force;
+        const force = 90;
+        this.hitKnockbackX = (dx / dist) * force;
+        this.hitKnockbackY = (dy / dist) * force;
 
-    this.hitStunTimer = this.hitStunDuration;
+        this.hitStunTimer = this.hitStunDuration;
     }
 
     die() {

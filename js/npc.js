@@ -4,32 +4,26 @@ import {findPath} from "./pathfinding.js";
 const npcImage = new Image();
 npcImage.src = "./pics/NPCs.png";
 
-export class NPC {
-  constructor({ x, y, size, color, name, dialogue, speed, dir, idleTimer }) {
-    Object.assign(this, { x, y, size, color, name, dialogue, speed, dir, idleTimer });
-    this.facing = "south";
-    this.nextIdleTime = 2 + Math.random() * 6;
+  export class NPC {
+    constructor({ x, y, size = 32, name, dialogue, speed = 20, dir = 1, idleTimer = 0 }) {
+      this.x = x;
+      this.y = y;
 
-    this.bounds = { xMin: x - 64, xMax: x + 64, yMin: y - 64, yMax: y + 64 }; // 4x tile range
-    this.path = [];
-    this.pathIndex = 0;
-  }
+      this.size = size;
+      this.name = name;
+      this.dialogue = dialogue;
 
-  update(dt, pathfinder) {
-    this.idleTimer += dt;
-    if (this.idleTimer > this.nextIdleTime || this.path.length === 0) {
-      const destX = Math.floor(this.bounds.xMin + Math.random() * (this.bounds.xMax - this.bounds.xMin));
-      const destY = Math.floor(this.bounds.yMin + Math.random() * (this.bounds.yMax - this.bounds.yMin));
-      const start = worldToTile(this.x, this.y);
-      const goal = worldToTile(destX, destY);
-      this.path = findPath(start, goal);
-      this.pathIndex = 0;
-      this.idleTimer = 0;
+      // movement defaults (CRITICAL)
+      this.speed = speed;
+      this.dir = dir;
+      this.idleTimer = idleTimer;
+
+      this.facing = "south";
       this.nextIdleTime = 2 + Math.random() * 6;
-    }
 
-    this.followPath(dt);
-  }
+      this.path = [];
+      this.pathIndex = 0;
+    }
 
   followPath(dt) {
     if (this.path.length === 0 || this.pathIndex >= this.path.length) return;
@@ -63,6 +57,8 @@ export class NPC {
       const frameSize = 32;
       let frameX = 0;
       let frameY = 0;
+      console.log("NPC at", this.x, this.y);
+
 
       // Determine frameY based on direction
       switch (this.facing) {
@@ -84,40 +80,14 @@ export class NPC {
   }
 }
 
-// Initial list of data
-const npcData = [
-  {
-    x: 500,
-    y: 450,
-    size: 32,
-    color: "#00ffff",
-    name: "Guard",
-    dialogue: [
-      "Stay safe out there, traveler.",
-      "The woods are dangerous at night!",
-      "They say monsters come from the old ruins to the east..."
-    ],
-    speed: 30,
-    dir: 1,
-    idleTimer: 0,
-  },
-  {
-    x: 400,
-    y: 450,
-    size: 28,
-    color: "#ff69b4",
-    name: "Villager",
-    dialogue: [
-      "The harvest has been good this year.",
-      "But the storm last week washed away part of the road.",
-      "You might want to visit the blacksmith — he’s been repairing tools all day."
-    ],
-    speed: 20,
-    dir: -1,
-    idleTimer: 0,
-  }
-];
-
-export function setupNPCs() {
-  return npcData.map(n => new NPC(n));
+export function setupNPCs(getDialogue) {
+  return [
+    new NPC({
+      x: 1000,
+      y: 600,
+      size: 32,
+      name: "Villager",
+      dialogue: getDialogue
+    })
+  ];
 }

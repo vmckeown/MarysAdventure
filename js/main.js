@@ -136,8 +136,59 @@ let player;
 export const WIDTH = 800;
 export const HEIGHT = 600;
 
+function getVillagerDialogue(tutorial) {
+  if (!tutorial.moved) {
+    return [
+      "You look new around here.",
+      "Try moving with WASD or the arrow keys."
+    ];
+  }
+
+  if (!tutorial.sawEnemy) {
+    return [
+      "Careful out there.",
+      "Goblins have been spotted near the road."
+    ];
+  }
+
+  if (!tutorial.attacked) {
+    return [
+      "If one attacks you, press SPACE to fight back."
+    ];
+  }
+
+  if (!tutorial.openedInventory) {
+    return [
+      "Press I to check your inventory.",
+      "You might find something useful."
+    ];
+  }
+
+  return [
+    "You're learning fast.",
+    "Stay alive out there."
+  ];
+}
+
+
 let canvas, ctx;
 let deathFade = 0;
+
+const tutorial = {
+  moved: false,
+  sawEnemy: false,
+  attacked: false,
+  openedInventory: false
+};
+
+let tutorialDebugOnce = {
+  moved: false,
+  sawEnemy: false,
+  attacked: false,
+  openedInventory: false
+};
+
+
 
 window.addEventListener("DOMContentLoaded", () => {
   canvas = document.getElementById("gameCanvas");
@@ -163,6 +214,14 @@ let effects = [];
 // Dialogue System
 let activeDialogue = null;
 
+export function triggerDialogue(text, duration = 3) {
+  activeDialogue = {
+    text,
+    timer: duration,
+    alpha: 1
+  };
+}
+
 // Camera
 let camera = {
   x: 0,
@@ -184,11 +243,9 @@ function init() {
   player = new Player(3, 46);
   window.player = player; // optional, for debugging only
 
-  npcs = setupNPCs();
+  npcs = setupNPCs(getVillagerDialogue);
 
-  spawnEnemy(12, 12, "brute");
-  spawnEnemy(18, 6, "coward");
-  spawnEnemy(22, 12, "skirmisher");
+  spawnEnemy(22, 32, "coward");
 
   houses.push(
     new House(1000, 600, {
@@ -280,8 +337,18 @@ function gameLoop(timestamp) {
 function update(dt) {
    updateWorldAnimation(dt); 
 
+  if (activeDialogue) {
+    activeDialogue.timer -= dt;
+    activeDialogue.alpha = Math.min(1, activeDialogue.timer);
+
+    if (activeDialogue.timer <= 0) {
+      activeDialogue = null;
+    }
+  }
+
   if (wasKeyPressed("i")) {
     player.isInventoryOpen = !player.isInventoryOpen;
+    tutorial.openedInventory = true;
   }
 
   player.update(dt);
@@ -303,6 +370,20 @@ function update(dt) {
     deathFade = Math.max(0, deathFade - dt * 2);
   }
 
+  if (!tutorial.moved) {
+    if (
+      keys["w"] || keys["a"] || keys["s"] || keys["d"] ||
+      keys["ArrowUp"] || keys["ArrowDown"] ||
+      keys["ArrowLeft"] || keys["ArrowRight"]
+    ) {
+      tutorial.moved = true;
+
+      if (!tutorialDebugOnce.moved) {
+        console.log("✅ Tutorial: movement detected");
+        tutorialDebugOnce.moved = true;
+      }
+    }
+  }
 
 
   // ===== INPUT ROUTING =====
@@ -336,9 +417,6 @@ function update(dt) {
     }
   }
 
-
-
-
   updateIceBolts(dt);
   handleAttack(dt, npcs, objects);
   updateNPCs(dt);
@@ -369,7 +447,7 @@ function update(dt) {
   updateItemPickup(player);
   updateXPOrbs(dt);
   updateCamera(dt);
-  //handleInteractions();
+  handleInteractions();
 }
 
 // ===== NPC Idle Movement =====
@@ -410,9 +488,35 @@ function updateItemPickup(player) {
 
 // ===== Combat System =====
 function handleAttack(dt) {
-  if (attackCooldown > 0) attackCooldown -= dt;
-
   const attackPressed = keys[" "] || keys["Space"] || keys["Spacebar"];
+
+  if (!tutorial.sawEnemy) {
+    for (const enemy of enemies) {
+      if (!enemy.alive) continue;
+
+      const dx = enemy.x - player.x;
+      const dy = enemy.y - player.y;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist < 200) {
+        tutorial.sawEnemy = true;
+
+        if (!tutorialDebugOnce.sawEnemy) {
+          console.log("✅ Tutorial: enemy detected nearby");
+          tutorialDebugOnce.sawEnemy = true;
+        }
+
+        break;
+      }
+    }
+  }
+
+
+  if (attackPressed) {
+    tutorial.attacked = true;
+  }
+
+  if (attackCooldown > 0) attackCooldown -= dt;
 
   if (attackPressed && attackCooldown <= 0) {
     attackCooldown = ATTACK_COOLDOWN_TIME;
@@ -427,23 +531,14 @@ function handleAttack(dt) {
       const dist = Math.sqrt(dx * dx + dy * dy);
 
       if (dist < ATTACK_RANGE + enemy.size / 2) {
-        // Directional cone
         const angleToEnemy = Math.atan2(dy, dx);
-        let facingAngle = 0;
 
+        let facingAngle = 0;
         switch (player.facing) {
-          case "right":
-            facingAngle = 0;
-            break;
-          case "down":
-            facingAngle = Math.PI / 2;
-            break;
-          case "left":
-            facingAngle = Math.PI;
-            break;
-          case "up":
-            facingAngle = -Math.PI / 2;
-            break;
+          case "right": facingAngle = 0; break;
+          case "down":  facingAngle = Math.PI / 2; break;
+          case "left":  facingAngle = Math.PI; break;
+          case "up":    facingAngle = -Math.PI / 2; break;
         }
 
         const angleDiff = Math.abs(
@@ -454,19 +549,14 @@ function handleAttack(dt) {
         );
 
         if (angleDiff < Math.PI / 4) {
-          // 45-degree cone
           enemy.damage(1);
           hitSomething = true;
         }
       }
     }
-
-    if (!hitSomething) {
-      // Optional: uncomment if you want feedback, but avoid spam
-      // console.log("No enemy in range.");
-    }
   }
 }
+
 
 function pickupItem(worldItem) {
   const inventoryItem = {
@@ -537,6 +627,37 @@ function updateCamera(dt) {
   );
 }
 
+function drawTutorialHints(ctx) {
+  let text = null;
+
+  if (!tutorial.moved) {
+    text = "Use WASD or Arrow Keys to move";
+  }
+  else if (!tutorial.sawEnemy) {
+    text = "Explore the area";
+  }
+  else if (!tutorial.attacked) {
+    text = "Press SPACE to attack";
+  }
+  else if (!tutorial.openedInventory) {
+    text = "Press I to open your inventory";
+  }
+
+  if (!text) return;
+
+  ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.7)";
+    ctx.fillRect(200, 520, 400, 40);
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "16px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(text, 400, 548);
+  ctx.restore();
+}
+
+
+
 // ===== Input Helper for Single Key Press Detection =====
 let previousKeys = {};
 
@@ -592,7 +713,7 @@ function render() {
   }
 
   drawEffects();
-
+  
   // ===== DEBUG: Draw Enemy Paths =====
   for (const enemy of enemies) {
     if (!enemy.path || enemy.path.length === 0) continue;
@@ -624,6 +745,8 @@ function render() {
       ctx.arc(px, py, 4, 0, Math.PI * 2);
       ctx.fill();
     }
+
+
   }
 
   // ===== Enemy Path & Vision Debug =====
@@ -688,7 +811,9 @@ function render() {
   drawIceBolts(ctx);
 
   ctx.restore();
+  drawDialogue(ctx);
   drawUI();
+  drawTutorialHints(ctx);
 
   if (player.isInventoryOpen) {
     drawInventory(ctx, canvas, player);
@@ -869,11 +994,37 @@ function drawUI() {
   ctx.fillText("Spirit", 230, y + 12);
 
   // --- Dialogue ---
-  if (activeDialogue) drawDialogueBox(activeDialogue);
+  //if (activeDialogue) drawDialogue(activeDialogue);
 
   ctx.restore();
 }
 
+function drawDialogue(ctx) {
+  if (!activeDialogue) return;
+
+  const padding = 10;
+  const width = 420;
+  const height = 48;
+
+  const x = canvas.width / 2 - width / 2;
+  const y = canvas.height - 120;
+
+  ctx.save();
+  ctx.globalAlpha = activeDialogue.alpha;
+
+  ctx.fillStyle = "rgba(0,0,0,0.75)";
+  ctx.fillRect(x, y, width, height);
+
+  ctx.strokeStyle = "#aaa";
+  ctx.strokeRect(x, y, width, height);
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "16px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText(activeDialogue.text, x + width / 2, y + 30);
+
+  ctx.restore();
+}
 
 function handleInteractions() {
   // Check if player is near any NPC
@@ -883,11 +1034,15 @@ function handleInteractions() {
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     // Within talking range?
-    if (dist < 50 && wasKeyPressed("e")) {
+    if (dist < 50 && wasKeyPressed("q")) {
+     const lines = typeof npc.dialogue === "function"
+        ? npc.dialogue()
+        : npc.dialogue;
+
       activeDialogue = {
         name: npc.name,
-        lines: npc.dialogue,
-        currentLine: 0,
+        lines,
+        currentLine: 0
       };
     }
   }
@@ -900,3 +1055,5 @@ function handleInteractions() {
     }
   }
 }
+
+
