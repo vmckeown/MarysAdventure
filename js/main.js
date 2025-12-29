@@ -8,25 +8,40 @@
 // ===== Global Variables =====
 
 import {setupWorld,isColliding,TILE_SIZE,WORLD_COLS,WORLD_ROWS,BACKGROUND_COLOR,drawWorld, updateWorldAnimation} from "./world.js";
-import { Enemy, enemies, spawnEnemy, updateEnemies, ENEMY_STATE } from "./enemy.js";
-import { NPC, setupNPCs } from "./npc.js";
+import { enemies, spawnEnemy, updateEnemies, ENEMY_STATE } from "./enemy.js";
+import { setupNPCs } from "./npc.js";
 import { setupInput, keys, wasKeyPressed } from "./input.js";
 import { Graphics } from "./graphics.js";
 import { updateIceBolts, drawIceBolts } from "./iceBolt.js";
 import { drawInventory, updateInventoryCursor, inventoryCursor} from "./inventory.js";
 import { items, Item, ITEM_DEFS} from "./items.js";
 import { Player } from "./player.js";
-import { backgroundImage } from "./world.js"; // or wherever it lives
 import { Tree, TREE_TYPES } from "./tree.js";
 import { House } from "./house.js";
+import { drawDialogue, startDialogue, advanceDialogue, getVillagerDialogue, isDialogueActive } from "./dialogue.js";
+import { completeStep, getActiveQuest, quests, startQuest, QUEST_STATE, setQuestUpdateHandler} from "./quests.js";
+import "./questData.js";
 
 export const houses = [];
+const QUEST_FLASH_DURATION = 1.2;
 
 function spawnTreeCluster(cx, cy, offsets, type) {
   return offsets.map(([dx, dy]) =>
     new Tree(cx + dx, cy + dy, TREE_TYPES[type])
   );
 }
+
+const QUEST_PANEL_WIDTH = 360;
+const QUEST_PANEL_HEIGHT = 64;
+const QUEST_PANEL_MARGIN = 20;
+
+let questSlideX = -(QUEST_PANEL_WIDTH + QUEST_PANEL_MARGIN); // fully hidden
+let questTargetX = questSlideX;
+let questSlideSpeed = 10;
+let questVisibleTimer = 0;
+
+let questFlashTimer = 0; // already in your file, but keep only ONE copy
+
 
 function spawnTreeArea({
   xMin,
@@ -136,40 +151,6 @@ let player;
 export const WIDTH = 800;
 export const HEIGHT = 600;
 
-function getVillagerDialogue(tutorial) {
-  if (!tutorial.moved) {
-    return [
-      "You look new around here.",
-      "Try moving with WASD or the arrow keys."
-    ];
-  }
-
-  if (!tutorial.sawEnemy) {
-    return [
-      "Careful out there.",
-      "Goblins have been spotted near the road."
-    ];
-  }
-
-  if (!tutorial.attacked) {
-    return [
-      "If one attacks you, press SPACE to fight back."
-    ];
-  }
-
-  if (!tutorial.openedInventory) {
-    return [
-      "Press I to check your inventory.",
-      "You might find something useful."
-    ];
-  }
-
-  return [
-    "You're learning fast.",
-    "Stay alive out there."
-  ];
-}
-
 
 let canvas, ctx;
 let deathFade = 0;
@@ -188,6 +169,10 @@ let tutorialDebugOnce = {
   openedInventory: false
 };
 
+window.triggerQuestUI = function () {
+  questTargetX = 20;      // slide in
+  questVisibleTimer = 3;  // stay visible for 3 seconds
+};
 
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -196,6 +181,11 @@ window.addEventListener("DOMContentLoaded", () => {
 
   // Start your game here
   init();
+
+  setQuestUpdateHandler(() => {
+    questFlashTimer = QUEST_FLASH_DURATION;
+    questVisibleTimer = 3; // also force slide-in on quest update
+  });
 });
 
 // Timing
@@ -210,17 +200,6 @@ let npcs = [];
 let objects = [];
 let xpOrbs = [];
 let effects = [];
-
-// Dialogue System
-let activeDialogue = null;
-
-export function triggerDialogue(text, duration = 3) {
-  activeDialogue = {
-    text,
-    timer: duration,
-    alpha: 1
-  };
-}
 
 // Camera
 let camera = {
@@ -243,9 +222,9 @@ function init() {
   player = new Player(3, 46);
   window.player = player; // optional, for debugging only
 
-  npcs = setupNPCs(getVillagerDialogue);
+  npcs = setupNPCs(() => getVillagerDialogue(tutorial));
 
-  spawnEnemy(22, 32, "coward");
+  spawnEnemy(45, 45, "coward");
 
   houses.push(
     new House(1000, 600, {
@@ -337,14 +316,36 @@ function gameLoop(timestamp) {
 function update(dt) {
    updateWorldAnimation(dt); 
 
-  if (activeDialogue) {
-    activeDialogue.timer -= dt;
-    activeDialogue.alpha = Math.min(1, activeDialogue.timer);
-
-    if (activeDialogue.timer <= 0) {
-      activeDialogue = null;
+    if (questFlashTimer > 0) {
+      questFlashTimer -= dt;
+      if (questFlashTimer < 0) questFlashTimer = 0;
     }
-  }
+
+    if (questVisibleTimer > 0) {
+      questVisibleTimer -= dt;
+      questTargetX = QUEST_PANEL_MARGIN;
+    } else {
+      questTargetX = -(QUEST_PANEL_WIDTH + QUEST_PANEL_MARGIN);
+    }
+
+    questSlideX += (questTargetX - questSlideX) * Math.min(1, dt * questSlideSpeed);
+
+
+
+   if (Math.abs(player.displayXP - player.xp) > 0.1) {
+      xpFlashTimer = 0.2;
+   }
+
+  
+   var qPressed = false;
+
+   if (wasKeyPressed("q")) {  
+    qPressed = true;
+    handleInteractions(qPressed);
+    advanceDialogue();
+   }
+
+   
 
   if (wasKeyPressed("i")) {
     player.isInventoryOpen = !player.isInventoryOpen;
@@ -398,6 +399,10 @@ function update(dt) {
 
     player.handleMovementInput(mx, my, dt);
 
+    if (isDialogueActive() && wasKeyPressed("Enter")) {
+      advanceDialogue();
+    }
+
     if (wasKeyPressed("e")) {
       player.startIceCast();
     }
@@ -447,7 +452,6 @@ function update(dt) {
   updateItemPickup(player);
   updateXPOrbs(dt);
   updateCamera(dt);
-  handleInteractions();
 }
 
 // ===== NPC Idle Movement =====
@@ -511,8 +515,7 @@ function handleAttack(dt) {
     }
   }
 
-
-  if (attackPressed) {
+ if (attackPressed) {
     tutorial.attacked = true;
   }
 
@@ -627,37 +630,6 @@ function updateCamera(dt) {
   );
 }
 
-function drawTutorialHints(ctx) {
-  let text = null;
-
-  if (!tutorial.moved) {
-    text = "Use WASD or Arrow Keys to move";
-  }
-  else if (!tutorial.sawEnemy) {
-    text = "Explore the area";
-  }
-  else if (!tutorial.attacked) {
-    text = "Press SPACE to attack";
-  }
-  else if (!tutorial.openedInventory) {
-    text = "Press I to open your inventory";
-  }
-
-  if (!text) return;
-
-  ctx.save();
-    ctx.fillStyle = "rgba(0,0,0,0.7)";
-    ctx.fillRect(200, 520, 400, 40);
-
-    ctx.fillStyle = "#fff";
-    ctx.font = "16px monospace";
-    ctx.textAlign = "center";
-    ctx.fillText(text, 400, 548);
-  ctx.restore();
-}
-
-
-
 // ===== Input Helper for Single Key Press Detection =====
 let previousKeys = {};
 
@@ -694,6 +666,61 @@ function drawEntitiesSorted() {
     if (obj.draw) obj.draw(ctx);
   }
 }
+
+function drawQuestUI(ctx) {
+  const quest = getActiveQuest();
+  if (!quest) return;
+
+  const x = questSlideX;
+  const y = 20;
+  const width = QUEST_PANEL_WIDTH;
+  const height = QUEST_PANEL_HEIGHT;
+
+  // Flash pulse
+  let flashAlpha = 0;
+  if (questFlashTimer > 0) {
+    flashAlpha =
+      Math.sin((questFlashTimer / QUEST_FLASH_DURATION) * Math.PI) * 0.6;
+  }
+
+  // Glow
+  if (flashAlpha > 0) {
+    ctx.save();
+    ctx.shadowColor = "rgba(255, 220, 120, 0.9)";
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = `rgba(255, 220, 120, ${flashAlpha})`;
+    ctx.fillRect(x - 4, y - 4, width + 8, height + 8);
+    ctx.restore();
+  }
+
+  // Panel
+  ctx.fillStyle = "rgba(0,0,0,0.65)";
+  ctx.fillRect(x, y, width, height);
+
+  ctx.strokeStyle = "#999";
+  ctx.strokeRect(x, y, width, height);
+
+  ctx.font = "14px monospace";
+  ctx.fillStyle = "#fff";
+  ctx.fillText(quest.title, x + 12, y + 20);
+
+  const step = quest.steps[quest.currentStep];
+  if (step) {
+    ctx.fillStyle = "#ccc";
+    ctx.fillText(step.description, x + 12, y + 42);
+  }
+
+  // Step progress
+  ctx.fillStyle = "#888";
+  ctx.fillText(
+    `${quest.currentStep + 1}/${quest.steps.length}`,
+    x + width - 50,
+    y + 20
+  );
+}
+
+
+
 
 
 // ===== Render =====
@@ -811,9 +838,9 @@ function render() {
   drawIceBolts(ctx);
 
   ctx.restore();
-  drawDialogue(ctx);
+  drawDialogue(ctx, canvas);
   drawUI();
-  drawTutorialHints(ctx);
+  drawQuestUI(ctx)
 
   if (player.isInventoryOpen) {
     drawInventory(ctx, canvas, player);
@@ -913,147 +940,159 @@ function drawEffects() {
 
 
 // ===== UI Layer =====
+let xpFlashTimer = 0;
+let levelFlashTimer = 0;
+let displayedXP = 0;
+
+function drawStatLabel(text, x, y) {
+  ctx.fillStyle = "#eee";
+  ctx.font = "12px monospace";
+  ctx.fillText(text, x - 28, y + 9);
+}
+
 function drawUI() {
-  const barWidth = 200;
-  const barHeight = 14;
+  const baseX = 48;
+  const baseY = canvas.height - 120;
+
+  const barWidth = 170;
+  const barHeight = 10;
+  const spacing = 18;
 
   ctx.save();
-
-  // --- UI background panel ---
-  ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-  ctx.fillRect(10, 10, 300, 160);
-  ctx.strokeStyle = "#888";
-  ctx.strokeRect(10, 10, 300, 160);
-
-  ctx.font = "14px monospace";
-
-  let y = 40;
-
-  // --- Level ---
-  ctx.fillStyle = "#ccc";
-  ctx.fillText("Level", 20, y);
-  ctx.fillStyle = "#fff";
-  ctx.fillText(`${player.level}`, 80, y);
-
-  // --- XP text ---
-  y += 20;
-  ctx.fillStyle = "#ccc";
-  ctx.fillText("XP", 20, y);
-  ctx.fillStyle = "#fff";
-  ctx.fillText(`${Math.floor(player.xp)}/${player.xpToNext}`, 80, y);
-
-  // --- XP bar ---
-  y += 10;
-  ctx.strokeStyle = "#fff";
-  ctx.strokeRect(20, y, barWidth, barHeight);
 
   // Smooth XP animation
-  const xpLerpSpeed = 8; // higher = faster animation
-  player.displayXP += (player.xp - player.displayXP) * Math.min(1, xpLerpSpeed * deltaTime);
+  displayedXP += (player.xp - displayedXP) * Math.min(1, deltaTime * 8);
 
-  const xpRatio = Math.min(1, player.displayXP / player.xpToNext);
+  const xpRatio = Math.min(1, displayedXP / player.xpToNext);
 
-  ctx.fillStyle = "#66ccff";
-  ctx.fillRect(20, y, barWidth * xpRatio, barHeight);
+  // ===== LEVEL HEADER =====
+  if (levelFlashTimer > 0) {
+    ctx.shadowColor = "#ffe066";
+    ctx.shadowBlur = 20 * levelFlashTimer;
+  }
 
-  // --- Health ---
-  y += 30;
-  ctx.strokeStyle = "#fff";
-  ctx.strokeRect(20, y, barWidth, barHeight);
-
-  const healthRatio = Math.max(0, player.health / player.maxHealth);
-  ctx.fillStyle =
-    healthRatio > 0.5 ? "#00ff00" :
-    healthRatio > 0.25 ? "#ffff00" :
-    "#ff0000";
-
-  ctx.fillRect(20, y, barWidth * healthRatio, barHeight);
   ctx.fillStyle = "#fff";
-  ctx.fillText(`HP: ${player.health}/${player.maxHealth}`, 230, y + 12);
+  ctx.font = "bold 14px monospace";
+  ctx.fillText(`Lv ${player.level}`, baseX, baseY - 12);
 
-  // --- Stamina ---
-  y += 25;
-  ctx.strokeStyle = "#fff";
-  ctx.strokeRect(20, y, barWidth, barHeight);
+  ctx.shadowBlur = 0;
 
-  const staminaRatio = Math.max(0, player.stamina / player.maxStamina);
-  ctx.fillStyle = "#00ff88";
-  ctx.fillRect(20, y, barWidth * staminaRatio, barHeight);
-  ctx.fillStyle = "#fff";
-  ctx.fillText("Stamina", 230, y + 12);
+  // ===== XP BAR =====
+  ctx.fillStyle = "#1a1a1a";
+  ctx.fillRect(baseX, baseY, barWidth, barHeight);
 
-  // --- Spirit ---
-  y += 25;
-  ctx.strokeStyle = "#fff";
-  ctx.strokeRect(20, y, barWidth, barHeight);
+  ctx.fillStyle = "#6ecbff";
+  ctx.fillRect(baseX, baseY, barWidth * xpRatio, barHeight);
 
-  const spiritRatio = Math.max(0, player.spirit / player.maxSpirit);
-  ctx.fillStyle = "#66aaff";
-  ctx.fillRect(20, y, barWidth * spiritRatio, barHeight);
-  ctx.fillStyle = "#fff";
-  ctx.fillText("Spirit", 230, y + 12);
+  // XP glow pulse
+  if (xpFlashTimer > 0) {
+    ctx.strokeStyle = `rgba(110,203,255,${xpFlashTimer * 4})`;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(baseX - 1, baseY - 1, barWidth + 2, barHeight + 2);
+  }
 
-  // --- Dialogue ---
-  //if (activeDialogue) drawDialogue(activeDialogue);
+  // ===== HP =====
+  const hpY = baseY + spacing;
+
+  ctx.fillStyle = "#1a1a1a";
+  ctx.fillRect(baseX, hpY, barWidth, barHeight);
+
+  ctx.fillStyle = "#e74c3c";
+  ctx.fillRect(
+    baseX,
+    hpY,
+    barWidth * (player.health / player.maxHealth),
+    barHeight
+  );
+
+  drawStatLabel("HP", baseX, hpY);
+
+  // ===== STAMINA =====
+  const stY = hpY + spacing;
+
+  ctx.fillStyle = "#1a1a1a";
+  ctx.fillRect(baseX, stY, barWidth, barHeight);
+
+  ctx.fillStyle = "#2ecc71";
+  ctx.fillRect(
+    baseX,
+    stY,
+    barWidth * (player.stamina / player.maxStamina),
+    barHeight
+  );
+
+  drawStatLabel("ST", baseX, stY);
+
+  // ===== SPIRIT =====
+  const spY = stY + spacing;
+
+  ctx.fillStyle = "#1a1a1a";
+  ctx.fillRect(baseX, spY, barWidth, barHeight);
+
+  ctx.fillStyle = "#5dade2";
+  ctx.fillRect(
+    baseX,
+    spY,
+    barWidth * (player.spirit / player.maxSpirit),
+    barHeight
+  );
+
+  drawStatLabel("SP", baseX, spY);
 
   ctx.restore();
 }
 
-function drawDialogue(ctx) {
-  if (!activeDialogue) return;
 
-  const padding = 10;
-  const width = 420;
-  const height = 48;
+function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = text.split(" ");
+  let line = "";
 
-  const x = canvas.width / 2 - width / 2;
-  const y = canvas.height - 120;
-
-  ctx.save();
-  ctx.globalAlpha = activeDialogue.alpha;
-
-  ctx.fillStyle = "rgba(0,0,0,0.75)";
-  ctx.fillRect(x, y, width, height);
-
-  ctx.strokeStyle = "#aaa";
-  ctx.strokeRect(x, y, width, height);
-
-  ctx.fillStyle = "#fff";
-  ctx.font = "16px monospace";
-  ctx.textAlign = "center";
-  ctx.fillText(activeDialogue.text, x + width / 2, y + 30);
-
-  ctx.restore();
+  for (let n = 0; n < words.length; n++) {
+    const test = line + words[n] + " ";
+    if (ctx.measureText(test).width > maxWidth) {
+      ctx.fillText(line, x, y);
+      line = words[n] + " ";
+      y += lineHeight;
+    } else {
+      line = test;
+    }
+  }
+  ctx.fillText(line, x, y);
 }
 
-function handleInteractions() {
-  // Check if player is near any NPC
+function handleInteractions(qPressed) {
   for (const npc of npcs) {
     const dx = npc.x - player.x;
     const dy = npc.y - player.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const dist = Math.hypot(dx, dy);
 
-    // Within talking range?
-    if (dist < 50 && wasKeyPressed("q")) {
-     const lines = typeof npc.dialogue === "function"
-        ? npc.dialogue()
-        : npc.dialogue;
+    if (dist < 50 && qPressed) {
+      const quest = quests["shore_intro"];
 
-      activeDialogue = {
-        name: npc.name,
-        lines,
-        currentLine: 0
-      };
-    }
-  }
+      // Face the player
+      npc.facing =
+        Math.abs(dx) > Math.abs(dy)
+          ? (dx > 0 ? "left" : "right")
+          : (dy > 0 ? "up" : "down");
 
-  // Advance dialogue
-  if (activeDialogue && wasKeyPressed("Enter")) {
-    activeDialogue.currentLine++;
-    if (activeDialogue.currentLine >= activeDialogue.lines.length) {
-      activeDialogue = null;
+      // START quest if inactive
+      if (quest && quest.state === "inactive") {
+        startQuest("shore_intro");
+      }
+
+      // Complete quest step when appropriate
+      if (quest?.state === "active" && quest.currentStep === 1) {
+        completeStep("shore_intro");
+      }
+
+      // Always show dialogue last
+      startDialogue(getVillagerDialogue(), { x: 0, y: 0 });
     }
   }
 }
+
+
+
+
 
 

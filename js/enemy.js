@@ -14,7 +14,8 @@ import {TILE_SIZE} from "./world.js";
 import {findPath} from "./pathfinding.js";
 import {worldToTile} from "./world.js";
 import { items, Item } from "./items.js";
-import {triggerDialogue} from "./main.js"
+import { startDialogue, closeDialogue} from "./dialogue.js";
+import { completeStep } from "./quests.js";
 
 export const enemies = [];
 
@@ -203,9 +204,16 @@ export class Enemy {
         this.hitStunDuration = 0.15;
         this.hitKnockbackX = 0;
         this.hitKnockbackY = 0;
+
+        //taunts
+        this.tauntCooldown = 0;
+
     }
 
     update(dt, player) {
+        this.tauntCooldown = Math.max(0, this.tauntCooldown - dt);
+
+
         // =====================================
         // DEAD STATE (fade + knockback)
         // =====================================
@@ -270,16 +278,12 @@ export class Enemy {
                 }
             }
 
-            if (playerDist < 180 && !this.hasTaunted) {
-                this.hasTaunted = true;
-
-                const taunt = GOBLIN_TAUNTS[this.tauntIndex];
-                triggerDialogue(randomGoblinTaunt("spotted"));
-
-
-                console.log("🗣 Goblin taunt:", taunt);
+            if (this.tauntCooldown <= 0) {
+                startDialogue([randomGoblinTaunt("spotted")], {x: 0, y: 0});
+                this.tauntCooldown = 4;
             }
 
+            
         } else {
             this.alertTimer = 0;
         }
@@ -472,7 +476,7 @@ export class Enemy {
         // DEATH CHECK (XP SOURCE)
         // =====================================
         if (this.health <= 0) {
-            triggerDialogue(randomGoblinTaunt("death"));
+            startDialogue([randomGoblinTaunt("death")], {x: 0, y: 0}, true);
             return this.die(); // 🔑 CRITICAL LINE
         }
 
@@ -592,7 +596,8 @@ export class Enemy {
 
     damage(amount, sourceX, sourceY) {
         this.health -= amount;
-        triggerDialogue(randomGoblinTaunt("hit"));
+        startDialogue([randomGoblinTaunt("hit")], {x: 0, y: 0}, true)
+        ;
 
         this.showHealthBarTimer = this.healthBarDuration;
 
@@ -618,6 +623,8 @@ export class Enemy {
         this.alive = false;
         this.state = ENEMY_STATE.DEAD;
         this.deathTimer = this.deathDuration;
+        closeDialogue();
+        completeStep("shore_intro");
 
         // Knockback away from player
         const dx = this.x - player.x;
@@ -749,3 +756,7 @@ export function updateEnemies(dt) {
 export function drawEnemies(ctx) {
     for (const e of enemies) e.draw(ctx);
 }
+
+
+
+

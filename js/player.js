@@ -252,6 +252,7 @@ export class Player {
   levelUp() {
     this.level++;
     this.xpToNext = Math.floor(this.xpToNext * 1.35);
+    levelFlashTimer = 0.8;
 
     // Basic stat growth
     this.maxHealth += 1;
