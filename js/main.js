@@ -21,6 +21,10 @@ import { House } from "./house.js";
 import { drawDialogue, startDialogue, advanceDialogue, getVillagerDialogue, isDialogueActive } from "./dialogue.js";
 import { completeStep, getActiveQuest, quests, startQuest, QUEST_STATE, setQuestUpdateHandler} from "./quests.js";
 import "./questData.js";
+import { Raft } from "./raft.js";
+import { updateQuestUI, drawQuestUI, triggerQuestUI } from "./questUI.js";
+import { handleInteractions } from "./interactions.js";
+import { loadSound, playSound } from "./audio.js";
 
 export const houses = [];
 const QUEST_FLASH_DURATION = 1.2;
@@ -31,17 +35,14 @@ function spawnTreeCluster(cx, cy, offsets, type) {
   );
 }
 
-const QUEST_PANEL_WIDTH = 360;
-const QUEST_PANEL_HEIGHT = 64;
-const QUEST_PANEL_MARGIN = 20;
+// Quest UI animation state
+let questSlideX = -400;        // start offscreen
+let questTargetX = 20;         // where it slides to
+const QUEST_SLIDE_SPEED = 10;
 
-let questSlideX = -(QUEST_PANEL_WIDTH + QUEST_PANEL_MARGIN); // fully hidden
-let questTargetX = questSlideX;
-let questSlideSpeed = 10;
-let questVisibleTimer = 0;
+let questFlashTimer = 0;
 
-let questFlashTimer = 0; // already in your file, but keep only ONE copy
-
+const rafts = [];
 
 function spawnTreeArea({
   xMin,
@@ -53,6 +54,7 @@ function spawnTreeArea({
   minSpacing = 24
   }) {
   const placed = [];
+
 
   let attempts = 0;
   const MAX_ATTEMPTS = count * 10;
@@ -170,10 +172,13 @@ let tutorialDebugOnce = {
 };
 
 window.triggerQuestUI = function () {
-  questTargetX = 20;      // slide in
-  questVisibleTimer = 3;  // stay visible for 3 seconds
+  questTargetX = 20;
+  questFlashTimer = QUEST_FLASH_DURATION;
 };
 
+window.hideQuestUI = function () {
+  questTargetX = -400;
+};
 
 window.addEventListener("DOMContentLoaded", () => {
   canvas = document.getElementById("gameCanvas");
@@ -183,8 +188,9 @@ window.addEventListener("DOMContentLoaded", () => {
   init();
 
   setQuestUpdateHandler(() => {
-    questFlashTimer = QUEST_FLASH_DURATION;
-    questVisibleTimer = 3; // also force slide-in on quest update
+    //questFlashTimer = QUEST_FLASH_DURATION;
+    //questVisibleTimer = 3; // also force slide-in on quest update
+    triggerQuestUI();
   });
 });
 
@@ -215,11 +221,15 @@ function init() {
   canvas = document.getElementById("gameCanvas");
   ctx = canvas.getContext("2d");
 
+  loadSound("quest_start", "./sounds/quest_start.wav", 0.6);
+  loadSound("quest_update", "./sounds/quest_update.wav", 0.6);
+  loadSound("quest_complete", "./sounds/quest_complete.wav", 0.7);
+
   setupInput();
   setupWorld();
 
   // ✅ CREATE PLAYER INSTANCE HERE
-  player = new Player(3, 46);
+  player = new Player(8, 46);
   window.player = player; // optional, for debugging only
 
   npcs = setupNPCs(() => getVillagerDialogue(tutorial));
@@ -233,11 +243,17 @@ function init() {
     })
   );
 
+  const raftX = 8 * TILE_SIZE;
+  const raftY = 48 * TILE_SIZE;
+
+  rafts.push(
+    new Raft(raftX,raftY, 0, 6)
+  );
+
   items.push(new Item(400, 300, "health"));
 
   requestAnimationFrame(gameLoop);
 }
-
 
 // Combat
 let attackCooldown = 0;
@@ -314,80 +330,23 @@ function gameLoop(timestamp) {
 
 // ===== Update =====
 function update(dt) {
-   updateWorldAnimation(dt); 
+  updateWorldAnimation(dt);
 
-    if (questFlashTimer > 0) {
-      questFlashTimer -= dt;
-      if (questFlashTimer < 0) questFlashTimer = 0;
-    }
+  // --- INPUT ---
+  const qPressed = wasKeyPressed("q");
+  const attackPressed = keys[" "] || keys["Space"];
+  const inventoryPressed = wasKeyPressed("i");
 
-    if (questVisibleTimer > 0) {
-      questVisibleTimer -= dt;
-      questTargetX = QUEST_PANEL_MARGIN;
-    } else {
-      questTargetX = -(QUEST_PANEL_WIDTH + QUEST_PANEL_MARGIN);
-    }
+  if(qPressed){ 
+    handleInteractions({player,npcs,rafts,qPressed});
+  }
 
-    questSlideX += (questTargetX - questSlideX) * Math.min(1, dt * questSlideSpeed);
-
-
-
-   if (Math.abs(player.displayXP - player.xp) > 0.1) {
-      xpFlashTimer = 0.2;
-   }
-
-  
-   var qPressed = false;
-
-   if (wasKeyPressed("q")) {  
-    qPressed = true;
-    handleInteractions(qPressed);
-    advanceDialogue();
-   }
-
-   
-
-  if (wasKeyPressed("i")) {
+  if (inventoryPressed) {
     player.isInventoryOpen = !player.isInventoryOpen;
-    tutorial.openedInventory = true;
+    return; // stop movement while inventory is open
   }
 
-  player.update(dt);
-
-  if (player.isInventoryOpen) {
-    const input = getInventoryInput();
-    updateInventoryCursor(dt, input);
-
-    if (input.confirm) {
-      player.useItem(inventoryCursor);
-    }
-
-    return; // pause game while inventory open
-  }
-
-  if (player.isDead) {
-    deathFade = Math.min(1, deathFade + dt * 1.5);
-  } else {
-    deathFade = Math.max(0, deathFade - dt * 2);
-  }
-
-  if (!tutorial.moved) {
-    if (
-      keys["w"] || keys["a"] || keys["s"] || keys["d"] ||
-      keys["ArrowUp"] || keys["ArrowDown"] ||
-      keys["ArrowLeft"] || keys["ArrowRight"]
-    ) {
-      tutorial.moved = true;
-
-      if (!tutorialDebugOnce.moved) {
-        console.log("✅ Tutorial: movement detected");
-        tutorialDebugOnce.moved = true;
-      }
-    }
-  }
-
-
-  // ===== INPUT ROUTING =====
+  // --- MOVEMENT INPUT ---
   let mx = 0;
   let my = 0;
 
@@ -397,62 +356,26 @@ function update(dt) {
     if (keys["a"] || keys["ArrowLeft"]) mx -= 1;
     if (keys["d"] || keys["ArrowRight"]) mx += 1;
 
-    player.handleMovementInput(mx, my, dt);
-
-    if (isDialogueActive() && wasKeyPressed("Enter")) {
-      advanceDialogue();
-    }
-
-    if (wasKeyPressed("e")) {
-      player.startIceCast();
-    }
-
-    if (keys[" "] || keys["Space"]) {
-      handleAttack(dt);
-    }
+    player.handleMovementInput(mx, my, dt, npcs, objects);
   }
 
-  if (!player.isInventoryOpen && !player.isDead) {
-    updateItems(dt);
+    // --- ATTACK ---
+  if (!player.isDead && attackPressed) {
+    handleAttack(dt);
   }
 
-  if (player.isInventoryOpen && !player.isDead) {
-    if (wasKeyPressed("1")) {
-        player.useItem(0);
-    }
-  }
+  // --- UPDATE PLAYER STATE ---
+  player.update(dt);
 
-  updateIceBolts(dt);
-  handleAttack(dt, npcs, objects);
-  updateNPCs(dt);
-  //updateEnemies(dt, player)
-  const xpFromEnemies = updateEnemies(dt, player);
-
-  if (!player.isInventoryOpen && !player.isDead) {
-    updateIceBolts(dt);
-    handleAttack(dt, npcs, objects);
-    updateNPCs(dt);
-
-    const xpFromEnemies = updateEnemies(dt);
-    if (xpFromEnemies > 0) {
-      player.gainXP(xpFromEnemies);
-      effects.push({
-        type: "xpText",
-        x: player.x,
-        y: player.y - 20,
-        value: xpFromEnemies,
-        vy: -30,
-        alpha: 1,
-       timer: 0.8,
-      });
-    }
-  }
-
-  handleItemPickup();
-  updateItemPickup(player);
+  // --- OTHER SYSTEMS ---
+  updateEnemies(dt, player);
   updateXPOrbs(dt);
+  updateItemPickup(player);
   updateCamera(dt);
+  updateQuestUI(dt)
 }
+
+
 
 // ===== NPC Idle Movement =====
 function updateNPCs(dt) {
@@ -489,6 +412,18 @@ function updateItemPickup(player) {
   }
 }
 
+function drawInteractionHint(text, x, y) {
+  ctx.save();
+  ctx.font = "12px monospace";
+  ctx.fillStyle = "rgba(0,0,0,0.7)";
+  ctx.fillRect(x - 40, y - 28, 80, 18);
+
+  ctx.fillStyle = "#fff";
+  ctx.textAlign = "center";
+  ctx.fillText(text, x, y - 14);
+
+  ctx.restore();
+}
 
 // ===== Combat System =====
 function handleAttack(dt) {
@@ -667,61 +602,6 @@ function drawEntitiesSorted() {
   }
 }
 
-function drawQuestUI(ctx) {
-  const quest = getActiveQuest();
-  if (!quest) return;
-
-  const x = questSlideX;
-  const y = 20;
-  const width = QUEST_PANEL_WIDTH;
-  const height = QUEST_PANEL_HEIGHT;
-
-  // Flash pulse
-  let flashAlpha = 0;
-  if (questFlashTimer > 0) {
-    flashAlpha =
-      Math.sin((questFlashTimer / QUEST_FLASH_DURATION) * Math.PI) * 0.6;
-  }
-
-  // Glow
-  if (flashAlpha > 0) {
-    ctx.save();
-    ctx.shadowColor = "rgba(255, 220, 120, 0.9)";
-    ctx.shadowBlur = 18;
-    ctx.fillStyle = `rgba(255, 220, 120, ${flashAlpha})`;
-    ctx.fillRect(x - 4, y - 4, width + 8, height + 8);
-    ctx.restore();
-  }
-
-  // Panel
-  ctx.fillStyle = "rgba(0,0,0,0.65)";
-  ctx.fillRect(x, y, width, height);
-
-  ctx.strokeStyle = "#999";
-  ctx.strokeRect(x, y, width, height);
-
-  ctx.font = "14px monospace";
-  ctx.fillStyle = "#fff";
-  ctx.fillText(quest.title, x + 12, y + 20);
-
-  const step = quest.steps[quest.currentStep];
-  if (step) {
-    ctx.fillStyle = "#ccc";
-    ctx.fillText(step.description, x + 12, y + 42);
-  }
-
-  // Step progress
-  ctx.fillStyle = "#888";
-  ctx.fillText(
-    `${quest.currentStep + 1}/${quest.steps.length}`,
-    x + width - 50,
-    y + 20
-  );
-}
-
-
-
-
 
 // ===== Render =====
 function render() {
@@ -737,6 +617,14 @@ function render() {
     
   for (const item of items) {
     item.draw(ctx);
+  }
+
+  for (const raft of rafts) {
+    raft.draw(ctx);
+
+    if (raft.isNear(player.x, player.y)) {
+      drawInteractionHint("Press Q", raft.x, raft.y);
+    }
   }
 
   drawEffects();
@@ -840,7 +728,7 @@ function render() {
   ctx.restore();
   drawDialogue(ctx, canvas);
   drawUI();
-  drawQuestUI(ctx)
+  drawQuestUI(ctx, getActiveQuest());
 
   if (player.isInventoryOpen) {
     drawInventory(ctx, canvas, player);
@@ -1058,37 +946,6 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
     }
   }
   ctx.fillText(line, x, y);
-}
-
-function handleInteractions(qPressed) {
-  for (const npc of npcs) {
-    const dx = npc.x - player.x;
-    const dy = npc.y - player.y;
-    const dist = Math.hypot(dx, dy);
-
-    if (dist < 50 && qPressed) {
-      const quest = quests["shore_intro"];
-
-      // Face the player
-      npc.facing =
-        Math.abs(dx) > Math.abs(dy)
-          ? (dx > 0 ? "left" : "right")
-          : (dy > 0 ? "up" : "down");
-
-      // START quest if inactive
-      if (quest && quest.state === "inactive") {
-        startQuest("shore_intro");
-      }
-
-      // Complete quest step when appropriate
-      if (quest?.state === "active" && quest.currentStep === 1) {
-        completeStep("shore_intro");
-      }
-
-      // Always show dialogue last
-      startDialogue(getVillagerDialogue(), { x: 0, y: 0 });
-    }
-  }
 }
 
 

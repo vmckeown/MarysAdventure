@@ -1,3 +1,5 @@
+import { loadSound, playSound } from "./audio.js";
+
 export const QUEST_STATE = {
   INACTIVE: "inactive",
   ACTIVE: "active",
@@ -15,6 +17,8 @@ export function startQuest(id) {
 
   quest.state = QUEST_STATE.ACTIVE;
   quest.currentStep = 0;
+
+  playSound("quest_start");
 
   if (onQuestUpdated) onQuestUpdated(quest);
 }
