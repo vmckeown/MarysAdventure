@@ -1,10 +1,30 @@
-// input.js
+import { unlockAudio } from "./audio.js";
+
 export const keys = {};
 const previousKeys = {};
 
+let audioUnlocked = false;
+
 export function setupInput() {
-  window.addEventListener("keydown", (e) => (keys[e.key] = true));
-  window.addEventListener("keyup", (e) => (keys[e.key] = false));
+  window.addEventListener("keydown", (e) => {
+    keys[e.key] = true;
+
+    if (!audioUnlocked) {
+      unlockAudio();
+      audioUnlocked = true;
+    }
+  });
+
+  window.addEventListener("mousedown", () => {
+    if (!audioUnlocked) {
+      unlockAudio();
+      audioUnlocked = true;
+    }
+  });
+
+  window.addEventListener("keyup", (e) => {
+    keys[e.key] = false;
+  });
 }
 
 export function wasKeyPressed(key) {

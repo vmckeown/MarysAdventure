@@ -25,6 +25,8 @@ import { Raft } from "./raft.js";
 import { updateQuestUI, drawQuestUI, triggerQuestUI } from "./questUI.js";
 import { handleInteractions } from "./interactions.js";
 import { loadSound, playSound } from "./audio.js";
+import { Rock } from "./rocks.js";
+
 
 export const houses = [];
 const QUEST_FLASH_DURATION = 1.2;
@@ -148,6 +150,12 @@ export const trees = [
 
 ];
 
+export const rocks = [
+  { x: 420, y: 610, size: 32 },
+  { x: 460, y: 590, size: 32 },
+  { x: 500, y: 615, size: 48 }
+];
+
 let player;
 
 export const WIDTH = 800;
@@ -232,6 +240,11 @@ function init() {
   player = new Player(8, 46);
   window.player = player; // optional, for debugging only
 
+  const rockX = player.x + 40;
+  const rockY = player.y + 20;
+
+  objects.push(new Rock(rockX, rockY, 32));
+
   npcs = setupNPCs(() => getVillagerDialogue(tutorial));
 
   spawnEnemy(45, 45, "coward");
@@ -254,6 +267,24 @@ function init() {
 
   requestAnimationFrame(gameLoop);
 }
+
+let audioUnlocked = false;
+
+function unlockAudio() {
+  if (audioUnlocked) return;
+
+  Object.values(window.sounds || {}).forEach(a => {
+    a.play().then(() => {
+      a.pause();
+      a.currentTime = 0;
+    }).catch(() => {});
+  });
+
+  audioUnlocked = true;
+}
+
+window.addEventListener("keydown", unlockAudio, { once: true });
+window.addEventListener("mousedown", unlockAudio, { once: true });
 
 // Combat
 let attackCooldown = 0;
@@ -575,6 +606,12 @@ function drawEntitiesSorted() {
   for (const tree of trees) {
     renderables.push(tree);
   }
+
+  // Rocks
+  for (const obj of objects) {
+    renderables.push(obj);
+  }
+
 
   for (const house of houses){
     renderables.push(house);
