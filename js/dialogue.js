@@ -4,6 +4,8 @@ portraitImage.src = "./pics/portraits.png"; // make sure this exists
 import { quests, QUEST_STATE } from "./quests.js";
 
 let activeDialogue = null;
+let dialogueFinishedCallback = null;
+
 
 export function startDialogue(lines, portrait = null, force = false) {
   if (!force && activeDialogue) return;
@@ -17,15 +19,25 @@ export function startDialogue(lines, portrait = null, force = false) {
   };
 }
 
+export function onDialogueFinished(callback) {
+  dialogueFinishedCallback = callback;
+}
 
 export function advanceDialogue() {
   if (!activeDialogue) return;
 
   activeDialogue.index++;
+
   if (activeDialogue.index >= activeDialogue.lines.length) {
     activeDialogue = null;
+
+    if (dialogueFinishedCallback) {
+      dialogueFinishedCallback();
+      dialogueFinishedCallback = null;
+    }
   }
 }
+
 
 export function drawDialogue(ctx, canvas) {
   if (!activeDialogue) return;

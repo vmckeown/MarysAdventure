@@ -1,4 +1,4 @@
-import { startDialogue, getVillagerDialogue } from "./dialogue.js";
+import { startDialogue, getVillagerDialogue, onDialogueFinished } from "./dialogue.js";
 import { quests, startQuest, completeStep } from "./quests.js";
 import { triggerQuestUI } from "./questUI.js";
 
@@ -29,11 +29,20 @@ export function handleInteractions({ player, npcs, rafts, qPressed }) {
           ? dx > 0 ? "left" : "right"
           : dy > 0 ? "up" : "down";
 
+
       if (quest && quest.state === "inactive") {
         startQuest("shore_intro");
+
+        onDialogueFinished(() => {
+          completeStep("shore_intro"); // 🔓 unlock goblin AFTER dialogue
+        });
+
+        startDialogue(getVillagerDialogue());
+        return;
       }
 
-      if (quest?.state === "active" && quest.currentStep === 1) {
+
+      if (quest?.id === "shore_intro" && quest.currentStep === 2) {
         completeStep("shore_intro");
       }
 

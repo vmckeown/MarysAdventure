@@ -115,6 +115,7 @@ export class Enemy {
         this.meleeRange = a.meleeRange;
         this.maxHealth = a.maxHealth;
         this.hesitationChance = a.hesitationChance;
+        this.enabled = true;
 
         this.targetX = this.x;
         this.targetY = this.y;
@@ -262,7 +263,9 @@ export class Enemy {
         const dy = player.y - this.y;
         const playerDist = Math.hypot(dx, dy);
 
-        const seesPlayer = playerDist < this.visionRange;
+        const seesPlayer = this.enabled && playerDist < this.visionRange;
+
+        console.log(seesPlayer, this.enabled)
 
         if (seesPlayer) {
             this.alertTimer += dt;

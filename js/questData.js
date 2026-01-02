@@ -10,13 +10,9 @@ quests[FIRST_QUEST_ID] = {
   currentStep: 0,
 
   steps: [
-    {
-      id: "kill_goblin",
-      description: "Defeat the goblin nearby."
-    },
-    {
-      id: "talk_to_villager",
-      description: "Talk to the villager."
-    }
+    { id: "talk_to_villager", description: "Talk to the villager." },
+    { id: "kill_goblin", description: "Defeat the goblin nearby." },
+    { id: "return_to_villager", description: "Return to the villager." }
   ]
+
 };

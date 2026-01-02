@@ -37,6 +37,19 @@ function spawnTreeCluster(cx, cy, offsets, type) {
   );
 }
 
+setQuestUpdateHandler((quest) => {
+    triggerQuestUI();
+
+    if (quest.id === "shore_intro" && quest.currentStep === 1) {
+      for (const e of enemies) {
+        e.enabled = true;
+        e.state = ENEMY_STATE.PATROL;
+        e.alertTimer = 0;
+        console.log("✅ Goblin enabled");
+      }
+    }
+});
+
 // Quest UI animation state
 let questSlideX = -400;        // start offscreen
 let questTargetX = 20;         // where it slides to
@@ -150,16 +163,19 @@ export const trees = [
 
 ];
 
-export const rocks = [
-  { x: 420, y: 610, size: 32 },
-  { x: 460, y: 590, size: 32 },
-  { x: 500, y: 615, size: 48 }
-];
-
 let player;
 
 export const WIDTH = 800;
 export const HEIGHT = 600;
+
+const ROCK_POSITIONS = [
+  { x: 16, y: 34 }, 
+  { x: 19, y: 34 },
+  { x: 22, y: 39 },
+  { x: 18, y: 40 },
+  { x: 22, y: 45 }
+];
+
 
 
 let canvas, ctx;
@@ -194,12 +210,6 @@ window.addEventListener("DOMContentLoaded", () => {
 
   // Start your game here
   init();
-
-  setQuestUpdateHandler(() => {
-    //questFlashTimer = QUEST_FLASH_DURATION;
-    //questVisibleTimer = 3; // also force slide-in on quest update
-    triggerQuestUI();
-  });
 });
 
 // Timing
@@ -224,6 +234,9 @@ let camera = {
   speed: 5.0, // smoothing factor
 };
 
+
+
+
 // ===== Initialization =====
 function init() {
   canvas = document.getElementById("gameCanvas");
@@ -240,14 +253,21 @@ function init() {
   player = new Player(8, 46);
   window.player = player; // optional, for debugging only
 
-  const rockX = player.x + 40;
-  const rockY = player.y + 20;
-
-  objects.push(new Rock(rockX, rockY, 32));
+for (const pos of ROCK_POSITIONS) {
+  objects.push(
+    new Rock(
+      pos.x * TILE_SIZE + TILE_SIZE / 2,
+      pos.y * TILE_SIZE + TILE_SIZE / 2,
+      TILE_SIZE
+    )
+  );
+}
 
   npcs = setupNPCs(() => getVillagerDialogue(tutorial));
 
   spawnEnemy(45, 45, "coward");
+  const goblin = enemies[enemies.length - 1];
+  goblin.enabled = false;
 
   houses.push(
     new House(1000, 600, {
@@ -368,9 +388,14 @@ function update(dt) {
   const attackPressed = keys[" "] || keys["Space"];
   const inventoryPressed = wasKeyPressed("i");
 
-  if(qPressed){ 
-    handleInteractions({player,npcs,rafts,qPressed});
+  if (qPressed) {
+    if (isDialogueActive()) {
+      advanceDialogue(); 
+    } else {
+      handleInteractions({ player, npcs, rafts, qPressed });
+    }
   }
+
 
   if (inventoryPressed) {
     player.isInventoryOpen = !player.isInventoryOpen;

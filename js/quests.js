@@ -32,11 +32,13 @@ export function completeStep(id) {
 
   quest.currentStep++;
 
-  if (quest.currentStep >= quest.steps.length) {
-    quest.state = QUEST_STATE.COMPLETE;
-  }
+if (quest.currentStep >= quest.steps.length) {
+  quest.state = QUEST_STATE.COMPLETE;
+  triggerQuestUI(true);
+}
 
-  if (onQuestUpdated) onQuestUpdated(quest);
+
+if (onQuestUpdated) onQuestUpdated(quest);
 }
 
 export function getActiveQuest() {
@@ -48,6 +50,7 @@ export let onQuestUpdated = null;
 export function setQuestUpdateHandler(fn) {
   onQuestUpdated = fn;
 }
+
 
 
 

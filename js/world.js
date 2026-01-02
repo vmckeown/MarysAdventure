@@ -212,6 +212,24 @@ export function isColliding(x, y, size, npcs = [], objects = []) {
   ) {
     return true;
   }
+
+   // ---- check solid objects (rocks, etc) ----
+  for (const obj of objects) {
+    if (!obj.solid || !obj.getCollisionBox) continue;
+
+    const b = obj.getCollisionBox();
+
+    if (
+      x + size / 2 > b.x &&
+      x - size / 2 < b.x + b.width &&
+      y + size / 2 > b.y &&
+      y - size / 2 < b.y + b.height
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 

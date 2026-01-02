@@ -14,11 +14,12 @@ const QUEST_UI_STATE = {
   FLASHING: "flashing"
 };
 
-export function triggerQuestUI() {
+export function triggerQuestUI(isComplete = false) {
   questTargetX = QUEST_PANEL_MARGIN;
-  questVisibleTimer = 3;
+  questVisibleTimer = isComplete ? 5 : 3;
   questFlashTimer = QUEST_FLASH_DURATION;
 }
+
 
 export function updateQuestUI(dt) {
   if (questFlashTimer > 0) questFlashTimer -= dt;
@@ -64,10 +65,15 @@ export function drawQuestUI(ctx, quest) {
   ctx.font = "14px monospace";
   ctx.fillText(quest.title, x + 12, y + 20);
 
-  const step = quest.steps[quest.currentStep];
-  if (step) {
-    ctx.fillStyle = "#ccc";
-    ctx.fillText(step.description, x + 12, y + 42);
+  if (quest.state === "complete") {
+    ctx.fillStyle = "#9fef9f";
+    ctx.fillText("Quest Complete!", x + 12, y + 42);
+  } else {
+    const step = quest.steps[quest.currentStep];
+    if (step) {
+      ctx.fillStyle = "#ccc";
+      ctx.fillText(step.description, x + 12, y + 42);
+    }
   }
 
   ctx.fillStyle = "#888";
