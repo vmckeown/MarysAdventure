@@ -265,8 +265,6 @@ export class Enemy {
 
         const seesPlayer = this.enabled && playerDist < this.visionRange;
 
-        console.log(seesPlayer, this.enabled)
-
         if (seesPlayer) {
             this.alertTimer += dt;
 

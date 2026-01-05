@@ -21,6 +21,8 @@ export function triggerQuestUI(isComplete = false) {
 }
 
 
+
+
 export function updateQuestUI(dt) {
   if (questFlashTimer > 0) questFlashTimer -= dt;
 
@@ -69,10 +71,20 @@ export function drawQuestUI(ctx, quest) {
     ctx.fillStyle = "#9fef9f";
     ctx.fillText("Quest Complete!", x + 12, y + 42);
   } else {
-    const step = quest.steps[quest.currentStep];
-    if (step) {
-      ctx.fillStyle = "#ccc";
-      ctx.fillText(step.description, x + 12, y + 42);
+    if (quest.state === "complete") {
+      ctx.fillStyle = "#9fef9f";
+      ctx.fillText("Quest Complete!", x + 12, y + 36);
+
+      if (quest.reward) {
+        ctx.fillStyle = "#ffd966";
+        ctx.fillText(quest.reward, x + 12, y + 54);
+      }
+    } else {
+      const step = quest.steps[quest.currentStep];
+      if (step) {
+        ctx.fillStyle = "#ccc";
+        ctx.fillText(step.description, x + 12, y + 42);
+      }
     }
   }
 

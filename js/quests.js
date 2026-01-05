@@ -32,14 +32,15 @@ export function completeStep(id) {
 
   quest.currentStep++;
 
-if (quest.currentStep >= quest.steps.length) {
-  quest.state = QUEST_STATE.COMPLETE;
-  triggerQuestUI(true);
-}
+  if (quest.currentStep >= quest.steps.length) {
+    quest.state = QUEST_STATE.COMPLETE;
+    triggerQuestUI(true);
+  } else {
+    triggerQuestUI(false);
+  }
 
-
-if (onQuestUpdated) onQuestUpdated(quest);
-}
+  if (onQuestUpdated) onQuestUpdated(quest);
+  }
 
 export function getActiveQuest() {
   return Object.values(quests).find(q => q.state === QUEST_STATE.ACTIVE);

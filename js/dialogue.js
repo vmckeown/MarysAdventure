@@ -89,33 +89,44 @@ export function drawDialogue(ctx, canvas) {
 export function getVillagerDialogue() {
   const quest = quests["shore_intro"];
 
+  // Before quest
   if (!quest || quest.state === "inactive") {
     return [
       "You look like you washed ashore.",
-      "Be careful out there."
+      "We’ve had trouble lately...",
+      "There’s a goblin nearby."
     ];
   }
 
-  if (quest.state === "active") {
-    if (quest.currentStep === 0) {
-      return ["There’s a goblin nearby. Deal with it first."];
-    }
-
-    if (quest.currentStep === 1) {
-      return [
-        "You survived?",
-        "That goblin had been stalking travelers.",
-        "Thank you."
-      ];
-    }
+  // Quest active — goblin not yet killed
+  if (quest.state === "active" && quest.currentStep === 0) {
+    return [
+      "The goblin should be nearby.",
+      "Be careful — it’s dangerous."
+    ];
   }
 
+  // Goblin killed, return step
+  if (quest.state === "active" && quest.currentStep === 1) {
+    return [
+      "You’re back!",
+      "Did you take care of the goblin?",
+      "Thank you — the village can breathe again."
+    ];
+  }
+
+  // Quest complete
   if (quest.state === "complete") {
-    return ["You’ve done well. More dangers lie ahead."];
+    return [
+      "You’ve done us a great service.",
+      "If you’re heading out, be careful.",
+      "There are worse things than goblins..."
+    ];
   }
 
   return ["..."];
 }
+
 
 export function getGoblinTaunt() {
   const taunts = [

@@ -9,10 +9,12 @@ quests[FIRST_QUEST_ID] = {
   state: QUEST_STATE.INACTIVE,
   currentStep: 0,
 
+  reward: "+50 XP",
+
   steps: [
     { id: "talk_to_villager", description: "Talk to the villager." },
     { id: "kill_goblin", description: "Defeat the goblin nearby." },
     { id: "return_to_villager", description: "Return to the villager." }
   ]
-
 };
+
