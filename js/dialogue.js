@@ -148,3 +148,11 @@ export function closeDialogue() {
 export function hasDialogue() {
   return !!activeDialogue;
 }
+
+export const DIALOGUE = {
+  AIR_RUIN_DISCOVERY: [
+    "The air hums around the stone...",
+    "You feel lighter. Faster.",
+    "A path opens before you."
+  ]
+};

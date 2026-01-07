@@ -26,6 +26,9 @@ import { updateQuestUI, drawQuestUI, triggerQuestUI } from "./questUI.js";
 import { handleInteractions } from "./interactions.js";
 import { loadSound, playSound } from "./audio.js";
 import { Rock } from "./rocks.js";
+import { SKILLS, skillXpForNextLevel } from "./skills.js";
+import { Ruin } from "./ruin.js";
+import { ELEMENTS } from "./elements.js";
 
 
 export const houses = [];
@@ -38,17 +41,54 @@ function spawnTreeCluster(cx, cy, offsets, type) {
 }
 
 setQuestUpdateHandler((quest) => {
-    triggerQuestUI();
+  triggerQuestUI();
 
-    if (quest.id === "shore_intro" && quest.currentStep === 1) {
-      for (const e of enemies) {
-        e.enabled = true;
-        e.state = ENEMY_STATE.PATROL;
-        e.alertTimer = 0;
-        console.log("✅ Goblin enabled");
-      }
+  if (quest.id === "shore_intro" && quest.currentStep === 0) {
+    for (const e of enemies) {
+      e.enabled = true;
+      e.alive = true;
+      e.state = ENEMY_STATE.PATROL;
+
+      // reset AI state cleanly
+      e.alertTimer = 0;
+      e.lostSightTimer = 0;
+      e.chaseTimer = 0;
+      e.hitStunTimer = 0;
+      e.path = null;
+      e.pathIndex = 0;
+      e.lastSeen = null;
+
+      console.log("✅ Goblin enabled at quest start");
     }
+  }
 });
+
+function drawSkillsDebug(ctx) {
+  ctx.save();
+  ctx.fillStyle = "#fff";
+  ctx.font = "12px monospace";
+
+  let y = 20;
+  for (const [name, s] of Object.entries(SKILLS)) {
+    ctx.fillText(
+      `${name}: ${s.level} (${s.xp}/${skillXpForNextLevel(s.level)})`,
+      10,
+      y
+    );
+    y += 14;
+  }
+
+  ctx.restore();
+}
+
+
+const ruins = [];
+
+ruins.push(
+  new Ruin(1200, 450, ELEMENTS.AIR)
+);
+
+
 
 // Quest UI animation state
 let questSlideX = -400;        // start offscreen
@@ -384,17 +424,31 @@ function update(dt) {
   updateWorldAnimation(dt);
 
   // --- INPUT ---
-  const qPressed = wasKeyPressed("q");
   const attackPressed = keys[" "] || keys["Space"];
   const inventoryPressed = wasKeyPressed("i");
+  const interactPressed = wasKeyPressed("e");
 
-  if (qPressed) {
+  if (interactPressed) {
+    // If a dialogue is open, E advances it
     if (isDialogueActive()) {
-      advanceDialogue(); 
+      advanceDialogue();
     } else {
-      handleInteractions({ player, npcs, rafts, qPressed });
+      // Try ruins first
+      for (const ruin of ruins) {
+        if (ruin.isNear(player.x, player.y)) {
+          ruin.interact(player);
+          console.log("✅ Interacting with ruin:", ruin);
+
+          return;
+        }
+      }
+
+      // Otherwise normal interactions (NPCs/rafts)
+      handleInteractions({ player, npcs, rafts, qPressed: true }); // keep your function signature for now
     }
   }
+
+
 
 
   if (inventoryPressed) {
@@ -676,6 +730,10 @@ function render() {
 
   drawWorld(ctx, camera);
   drawEntitiesSorted();
+  
+  for (const ruin of ruins) {
+    ruin.draw(ctx);
+  }
     
   for (const item of items) {
     item.draw(ctx);
@@ -693,6 +751,7 @@ function render() {
   
   // ===== DEBUG: Draw Enemy Paths =====
   for (const enemy of enemies) {
+
     if (!enemy.path || enemy.path.length === 0) continue;
 
     ctx.strokeStyle =
@@ -791,6 +850,13 @@ function render() {
   drawDialogue(ctx, canvas);
   drawUI();
   drawQuestUI(ctx, getActiveQuest());
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "12px monospace";
+  let y = 20;
+
+  drawSkillsDebug(ctx);
+
 
   if (player.isInventoryOpen) {
     drawInventory(ctx, canvas, player);

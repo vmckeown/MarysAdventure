@@ -10,12 +10,13 @@ const orcBruteImage = new Image();
 orcBruteImage.src = "./pics/OrcBrute.png";
 
 
-import {TILE_SIZE} from "./world.js";
+import {TILE_SIZE, worldToTile, getTile, SOLID_TILES} from "./world.js";
 import {findPath} from "./pathfinding.js";
-import {worldToTile} from "./world.js";
 import { items, Item } from "./items.js";
 import { startDialogue, closeDialogue} from "./dialogue.js";
 import { completeStep } from "./quests.js";
+import { gainSkillXp } from "./skills.js";
+
 
 export const enemies = [];
 
@@ -47,11 +48,51 @@ const GOBLIN_TAUNTS = {
   ]
 };
 
+function isClearSpawnArea(tx, ty, radius = 2, maxSolid = 2) {
+  let solidCount = 0;
+
+  for (let y = -radius; y <= radius; y++) {
+    for (let x = -radius; x <= radius; x++) {
+      const nx = tx + x;
+      const ny = ty + y;
+
+      if (isTileSolid(nx, ny)) {
+        solidCount++;
+        if (solidCount > maxSolid) return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+function findRandomWalkableTileNear(wx, wy, radius = 6) {
+  const origin = worldToTile(wx, wy);
+
+  for (let i = 0; i < 25; i++) {
+    const tx = origin.x + Math.floor((Math.random() * 2 - 1) * radius);
+    const ty = origin.y + Math.floor((Math.random() * 2 - 1) * radius);
+
+    if (
+      !isTileSolid(tx, ty) &&
+      isClearSpawnArea(tx, ty, 2, 2)
+    ) {
+      return { x: tx, y: ty };
+    }
+  }
+
+  return origin;
+}
+
 function randomGoblinTaunt(type) {
   const list = GOBLIN_TAUNTS[type];
   return list[Math.floor(Math.random() * list.length)];
 }
 
+function isTileSolid(tx, ty) {
+  const tile = getTile(tx, ty);
+  return SOLID_TILES.includes(tile);
+}
 
 
 const ENEMY_ARCHETYPES = {
@@ -107,6 +148,9 @@ export class Enemy {
         if (this.type === "brute") {
             this.sprite = orcBruteImage;
         }
+
+        this.idleTimer = Math.random() * 1.5 + 0.5; // stagger enemies
+        this.hasPlayedDeathDialogue = false;
 
         this.speed = a.speed;
         this.courage = a.courage;
@@ -212,8 +256,10 @@ export class Enemy {
     }
 
     update(dt, player) {
-        this.tauntCooldown = Math.max(0, this.tauntCooldown - dt);
+        if (!this.enabled) return 0;
 
+        this.tauntCooldown = Math.max(0, this.tauntCooldown - dt);
+    
 
         // =====================================
         // DEAD STATE (fade + knockback)
@@ -237,6 +283,10 @@ export class Enemy {
             return 0;
         }
 
+        if (!this.alive || this.state === ENEMY_STATE.DEAD) {
+            return 0;
+        }
+
         // =====================================
         // HIT STUN (non-lethal stagger)
         // =====================================
@@ -245,6 +295,10 @@ export class Enemy {
         }
 
         if (this.hitStunTimer > 0) {
+            if (this.hitStunTimer > 0) {
+                console.log("⛔ Goblin stuck in hit stun:", this.hitStunTimer);
+            }
+
             this.hitStunTimer -= dt;
 
             this.x += this.hitKnockbackX * dt;
@@ -264,18 +318,26 @@ export class Enemy {
         const playerDist = Math.hypot(dx, dy);
 
         const seesPlayer = this.enabled && playerDist < this.visionRange;
+        //console.log("Enabled: " + this.enabled + " Vision: " + this.visionRange)
 
-        if (seesPlayer) {
+        if (seesPlayer && this.state !== ENEMY_STATE.SEARCH) {
+        //    console.log("👀 Goblin sees player | dist:",playerDist.toFixed(1),"state:",this.state);
             this.alertTimer += dt;
 
             if (this.alertTimer >= this.alertDelay) {
                 this.lastSeen = { x: player.x, y: player.y };
 
                 if (this.state !== ENEMY_STATE.CHASE) {
-                    this.state = ENEMY_STATE.CHASE;
-                    this.chaseTimer = 0;
-                    this.pathTimer = 0;
-                    this.alertNearbyEnemies();
+                this.state = ENEMY_STATE.CHASE;
+                this.chaseTimer = 0;
+                this.pathTimer = 0;
+                this.path = null;
+                this.pathIndex = 0;
+                this.alertNearbyEnemies();
+
+                console.log("🔥 Goblin entered CHASE");
+                } else {
+
                 }
             }
 
@@ -285,13 +347,17 @@ export class Enemy {
             }
 
             
-        } else {
+        } else if (!seesPlayer){
             this.alertTimer = 0;
         }
 
         // =====================================
         // STATE TRANSITIONS
         // =====================================
+
+
+
+
         if (this.state === ENEMY_STATE.CHASE) {
             if (seesPlayer) {
                 this.lostSightTimer = 0;
@@ -312,23 +378,44 @@ export class Enemy {
         // =====================================
         // STATE BEHAVIOR
         // =====================================
+
         switch (this.state) {
 
-            case ENEMY_STATE.IDLE:
-                if (Math.random() < 0.005) {
+            case ENEMY_STATE.IDLE: {
+                this.idleTimer -= dt;
+
+                if (this.idleTimer <= 0) {
                     this.state = ENEMY_STATE.PATROL;
-                    this.targetX = this.x + (Math.random() - 0.5) * 200;
-                    this.targetY = this.y + (Math.random() - 0.5) * 200;
+                    this.path = null;
+                    this.pathIndex = 0;
+                    this.idleTimer = Math.random() * 2 + 1;
                 }
+
                 break;
+            }
 
-            case ENEMY_STATE.PATROL:
-                this.moveToward(this.targetX, this.targetY, dt);
+            case ENEMY_STATE.PATROL: {
+                if (!this.path || this.pathIndex >= this.path.length) {
+                    const start = worldToTile(this.x, this.y);
+                    const target = findRandomWalkableTileNear(this.x, this.y, 6);
 
-                if (Math.hypot(this.targetX - this.x, this.targetY - this.y) < 10) {
+                    this.path = findPath(start, target);
+                    this.pathIndex = 0;
+
+                    if (!this.path || this.path.length === 0) {
+                        this.state = ENEMY_STATE.IDLE;
+                        break;
+                    }
+                }
+
+                this.followPath(dt);
+
+                if (this.pathIndex >= this.path.length) {
                     this.state = ENEMY_STATE.IDLE;
                 }
+
                 break;
+            }
 
             case ENEMY_STATE.CHASE: {
                 if (this.hesitationTimer > 0) {
@@ -437,6 +524,13 @@ export class Enemy {
             }
 
             case ENEMY_STATE.SEARCH: {
+                 if (seesPlayer) {
+                    this.state = ENEMY_STATE.CHASE;
+                    this.path = null;
+                    this.pathIndex = 0;
+                    break;
+                }
+
                 this.searchTimer -= dt;
 
                 if (!this.searchPath && this.lastSeen) {
@@ -476,9 +570,10 @@ export class Enemy {
         // =====================================
         // DEATH CHECK (XP SOURCE)
         // =====================================
-        if (this.health <= 0) {
+        if (this.health <= 0 && !this.hasPlayedDeathDialogue) {
+            this.hasPlayedDeathDialogue = true;
             startDialogue([randomGoblinTaunt("death")], {x: 0, y: 0}, true);
-            return this.die(); // 🔑 CRITICAL LINE
+            return this.die();
         }
 
         return 0;
@@ -597,7 +692,9 @@ export class Enemy {
 
     damage(amount, sourceX, sourceY) {
         this.health -= amount;
+
         startDialogue([randomGoblinTaunt("hit")], {x: 0, y: 0}, true)
+        gainSkillXp("melee", 1);
         ;
 
         this.showHealthBarTimer = this.healthBarDuration;
@@ -621,6 +718,9 @@ export class Enemy {
     die() {
         if (!this.alive) return 0;
 
+        this.path = null;
+        this.pathIndex = 0;
+        this.searchPath = null;
         this.alive = false;
         this.state = ENEMY_STATE.DEAD;
         this.deathTimer = this.deathDuration;
@@ -650,6 +750,8 @@ export class Enemy {
     // RENDERING
     // =====================================
     draw(ctx) {
+        if (!this.alive) return;
+
         ctx.save();
             ctx.globalAlpha = this.fadeAlpha;
 
@@ -737,8 +839,30 @@ export class Enemy {
 // ENEMY MANAGER
 // =====================================
 export function spawnEnemy(tileX, tileY, type) {
-    enemies.push(new Enemy(tileX, tileY, type));
+  let spawn = { x: tileX, y: tileY };
+
+  // If requested tile is bad, search nearby
+  if (
+    isTileSolid(tileX, tileY) ||
+    !isClearSpawnArea(tileX, tileY, 2, 2)
+  ) {
+    for (let i = 0; i < 30; i++) {
+      const tx = tileX + Math.floor(Math.random() * 10) - 5;
+      const ty = tileY + Math.floor(Math.random() * 10) - 5;
+
+      if (
+        !isTileSolid(tx, ty) &&
+        isClearSpawnArea(tx, ty, 2, 2)
+      ) {
+        spawn = { x: tx, y: ty };
+        break;
+      }
+    }
+  }
+
+  enemies.push(new Enemy(spawn.x, spawn.y, type));
 }
+
 
 export function updateEnemies(dt) {
     let xpGained = 0;

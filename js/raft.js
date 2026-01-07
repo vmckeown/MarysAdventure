@@ -12,7 +12,6 @@ export class Raft {
     this.size = 32;
 
     this.interactionRadius = 36;
-    console.log(this.x, this.y)
   }
 
   isNear(px, py) {

@@ -1,6 +1,8 @@
 // player.js
 import { isColliding, TILE_SIZE } from "./world.js";
 import { spawnIceBolt } from "./iceBolt.js";
+import { gainSkillXp } from "./skills.js";
+import { gainElementPoint, ELEMENTS } from "./elements.js";
 
 const maryImage = new Image();
 maryImage.src = "./pics/Mary.png";
@@ -75,6 +77,14 @@ export class Player {
     this.inventorySize = 12; // 3x4 grid later
     this.isInventoryOpen = false;
 
+    this.skills = {
+      oneHanded: { level: 15, xp: 0, xpToNext: 100 },
+      archery: { level: 15, xp: 0, xpToNext: 100 },
+      blocking: { level: 15, xp: 0, xpToNext: 100 },
+      lightArmor: { level: 15, xp: 0, xpToNext: 100 },
+      magic: { level: 15, xp: 0, xpToNext: 100 }
+    };
+
     for (let i = 0; i < this.inventorySize; i++) {
       this.inventory.push(null);
     }
@@ -105,12 +115,50 @@ export class Player {
       return; // skip input while stunned
     }
 
+    if (player.pendingLevelUp) {
+      if (wasKeyPressed("1")) {
+        player.maxHealth += 10;
+      }
+      if (wasKeyPressed("2")) {
+        player.maxStamina += 10;
+      }
+      if (wasKeyPressed("3")) {
+        player.maxSpirit += 10;
+      }
+
+      player.pendingLevelUp = false;
+    }
+
     if (this.state === PLAYER_STATE.CASTING_ICE) {
       this.updateIceBolt(dt);
     }
 
     this.updateAnimation(dt);
   }
+
+  gainSkillXP(skillName, amount) {
+    const skill = this.skills[skillName];
+    if (!skill) return;
+
+    skill.xp += amount;
+
+    if (skill.xp >= skill.xpToNext) {
+      skill.xp -= skill.xpToNext;
+      skill.level++;
+      gainElementPoint();
+
+      skill.xpToNext = Math.floor(skill.xpToNext * 1.15);
+
+      this.onSkillLeveled(skillName);
+    }
+  }
+
+  onSkillLeveled(skillName) {
+    this.gainXP(20); // feeds your EXISTING XP bar
+    console.log(`${skillName} increased!`);
+}
+
+
 
   startIceBolt() {
     console.log("[Player] Ice cast started");
@@ -197,6 +245,7 @@ export class Player {
     if (this.isDead) return;
 
     this.health = Math.max(0, this.health - amount);
+    gainSkillXp("defense", 1);
 
     if (this.health <= 0) {
       this.die();
@@ -246,6 +295,7 @@ export class Player {
     while (this.xp >= this.xpToNext) {
       this.xp -= this.xpToNext;
       this.levelUp();
+      this.pendingLevelUp = true;
     }
   }
 
