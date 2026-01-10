@@ -1,4 +1,5 @@
-// elements.js
+import { ELEMENT_SKILLS } from "./skills.js";
+
 export const ELEMENTS = {
   air: {
     unlocked: false,
@@ -24,13 +25,24 @@ export const ELEMENTS = {
 
 export let elementPoints = 0;
 
-export function unlockElement(name) {
-  const el = ELEMENTS[name];
-  if (!el || el.unlocked) return;
+export function unlockElement(elementKey) {
+  var element = ELEMENTS[elementKey];
+  if (!element) {
+    console.warn("⚠ Unknown element:", elementKey);
+    return;
+  }
 
-  el.unlocked = true;
-  console.log(`🌟 Element discovered: ${name.toUpperCase()}`);
+  element.unlocked = true;
+
+  // 🔗 SYNC WITH SKILL TREE
+  if (ELEMENT_SKILLS[elementKey]) {
+    ELEMENT_SKILLS[elementKey].unlocked = true;
+  }
+
+  console.log("✨ ELEMENT STATE:", ELEMENTS);
 }
+
+
 
 export function gainElementPoint() {
   elementPoints++;
@@ -49,3 +61,10 @@ export function spendElementPoint(name) {
   console.log(`⬆ ${name.toUpperCase()} leveled to ${el.level}`);
   return true;
 }
+
+export function getActiveElements() {
+  return Object.entries(ELEMENTS)
+    .filter(([_, e]) => e.unlocked)
+    .map(([key]) => key);
+}
+

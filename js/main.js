@@ -28,8 +28,8 @@ import { loadSound, playSound } from "./audio.js";
 import { Rock } from "./rocks.js";
 import { SKILLS, skillXpForNextLevel } from "./skills.js";
 import { Ruin } from "./ruin.js";
-import { ELEMENTS } from "./elements.js";
-
+import { ELEMENTS, getActiveElements} from "./elements.js";
+import {toggleSkillTree, drawSkillTree, isSkillTreeOpen, handleSkillTreeInput, getUnlockedAirPassives, drawSwiftStepParticles } from "./skillTreeUI.js";
 
 export const houses = [];
 const QUEST_FLASH_DURATION = 1.2;
@@ -85,7 +85,7 @@ function drawSkillsDebug(ctx) {
 const ruins = [];
 
 ruins.push(
-  new Ruin(1200, 450, ELEMENTS.AIR)
+  new Ruin(1200, 450, "air")
 );
 
 
@@ -293,6 +293,9 @@ function init() {
   player = new Player(8, 46);
   window.player = player; // optional, for debugging only
 
+  player.skillPoints = 1;
+
+
 for (const pos of ROCK_POSITIONS) {
   objects.push(
     new Rock(
@@ -423,44 +426,48 @@ function gameLoop(timestamp) {
 function update(dt) {
   updateWorldAnimation(dt);
 
-  // --- INPUT ---
   const attackPressed = keys[" "] || keys["Space"];
   const inventoryPressed = wasKeyPressed("i");
   const interactPressed = wasKeyPressed("e");
+  const skillTreePressed = wasKeyPressed("k");
+  const escapePressed = wasKeyPressed("Escape");
 
-  if (interactPressed) {
-    // If a dialogue is open, E advances it
+  // ---- SKILL TREE TOGGLE ----
+  if (skillTreePressed) {
+    toggleSkillTree();
+  }
+
+  // ---- SKILL TREE INPUT (DO NOT RETURN) ----
+  if (isSkillTreeOpen()) {
+    handleSkillTreeInput(player, wasKeyPressed);
+  }
+
+  // ---- INTERACT ----
+  if (interactPressed && !isSkillTreeOpen()) {
     if (isDialogueActive()) {
       advanceDialogue();
     } else {
-      // Try ruins first
       for (const ruin of ruins) {
         if (ruin.isNear(player.x, player.y)) {
           ruin.interact(player);
-          console.log("✅ Interacting with ruin:", ruin);
-
+          console.log("✅ Interacting with ruin");
           return;
         }
       }
-
-      // Otherwise normal interactions (NPCs/rafts)
-      handleInteractions({ player, npcs, rafts, qPressed: true }); // keep your function signature for now
+      handleInteractions({ player, npcs, rafts, qPressed: true });
     }
   }
 
-
-
-
+  // ---- INVENTORY (THIS ONE CAN RETURN) ----
   if (inventoryPressed) {
     player.isInventoryOpen = !player.isInventoryOpen;
-    return; // stop movement while inventory is open
+    return;
   }
 
-  // --- MOVEMENT INPUT ---
-  let mx = 0;
-  let my = 0;
+  // ---- MOVEMENT ----
+  let mx = 0, my = 0;
 
-  if (!player.isDead && !player.isInventoryOpen) {
+  if (!player.isDead && !player.isInventoryOpen && !isSkillTreeOpen()) {
     if (keys["w"] || keys["ArrowUp"]) my -= 1;
     if (keys["s"] || keys["ArrowDown"]) my += 1;
     if (keys["a"] || keys["ArrowLeft"]) mx -= 1;
@@ -469,23 +476,22 @@ function update(dt) {
     player.handleMovementInput(mx, my, dt, npcs, objects);
   }
 
-    // --- ATTACK ---
-  if (!player.isDead && attackPressed) {
+  // ---- ATTACK ----
+  if (!player.isDead && attackPressed && !isSkillTreeOpen()) {
     handleAttack(dt);
   }
 
-  // --- UPDATE PLAYER STATE ---
+  // ---- UPDATE SYSTEMS ----
   player.update(dt);
-
-  // --- OTHER SYSTEMS ---
   updateEnemies(dt, player);
   updateXPOrbs(dt);
   updateItemPickup(player);
   updateCamera(dt);
-  updateQuestUI(dt)
+  updateQuestUI(dt);
 }
 
 
+  
 
 // ===== NPC Idle Movement =====
 function updateNPCs(dt) {
@@ -627,6 +633,18 @@ function pickupItem(worldItem) {
   }
 }
 
+function spawnSwiftStepParticle(x, y) {
+  effects.push({
+    type: "wind",
+    x: x + (Math.random() * 6 - 3),
+    y: y + (Math.random() * 6 - 3),
+    vx: Math.random() * -20,
+    vy: Math.random() * -10,
+    alpha: 0.6,
+    size: 6,
+    timer: 0.3
+  });
+}
 
 function handleItemPickup() {
   for (let i = items.length - 1; i >= 0; i--) {
@@ -727,14 +745,14 @@ function render() {
   ctx.save();
   ctx.translate(-camera.x, -camera.y);
 
-
   drawWorld(ctx, camera);
   drawEntitiesSorted();
-  
+  drawSwiftStepParticles(ctx, deltaTime);
+
   for (const ruin of ruins) {
     ruin.draw(ctx);
   }
-    
+
   for (const item of items) {
     item.draw(ctx);
   }
@@ -746,46 +764,10 @@ function render() {
       drawInteractionHint("Press Q", raft.x, raft.y);
     }
   }
-
-  drawEffects();
   
-  // ===== DEBUG: Draw Enemy Paths =====
-  for (const enemy of enemies) {
+  drawEffects();
 
-    if (!enemy.path || enemy.path.length === 0) continue;
-
-    ctx.strokeStyle =
-      enemy.state === ENEMY_STATE.CHASE
-        ? "red"
-        : enemy.state === ENEMY_STATE.PATROL
-        ? "yellow"
-        : "orange";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-
-    for (let i = 0; i < enemy.path.length; i++) {
-      const tx = enemy.path[i].x * TILE_SIZE + TILE_SIZE / 2;
-      const ty = enemy.path[i].y * TILE_SIZE + TILE_SIZE / 2;
-      if (i === 0) ctx.moveTo(tx, ty);
-      else ctx.lineTo(tx, ty);
-    }
-
-    ctx.stroke();
-
-    // Draw path points
-    for (const node of enemy.path) {
-      const px = node.x * TILE_SIZE + TILE_SIZE / 2;
-      const py = node.y * TILE_SIZE + TILE_SIZE / 2;
-      ctx.fillStyle = "rgba(255,255,255,0.5)";
-      ctx.beginPath();
-      ctx.arc(px, py, 4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-
-  }
-
-  // ===== Enemy Path & Vision Debug =====
+  // ===== Enemy Path & Vision Debug (leave as-is if you want debug) =====
   for (const enemy of enemies) {
     if (!enemy.alive) continue;
 
@@ -824,14 +806,14 @@ function render() {
     ctx.arc(enemy.x, enemy.y, enemy.visionRange, 0, Math.PI * 2);
     ctx.strokeStyle =
       enemy.state === ENEMY_STATE.CHASE
-        ? "rgba(255,0,0,0.4)" // red for chase
+        ? "rgba(255,0,0,0.4)"
         : enemy.state === ENEMY_STATE.PATROL
-        ? "rgba(255,255,0,0.3)" // yellow for patrol
-        : "rgba(255,165,0,0.3)"; // orange for search
+        ? "rgba(255,255,0,0.3)"
+        : "rgba(255,165,0,0.3)";
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Optional: draw line of sight when player is visible
+    // Optional: line to player
     const dx = player.x - enemy.x;
     const dy = player.y - enemy.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -844,24 +826,31 @@ function render() {
       ctx.stroke();
     }
   }
+
   drawIceBolts(ctx);
 
   ctx.restore();
+
+  // ----- UI Layer (screen-space) -----
   drawDialogue(ctx, canvas);
+
   drawUI();
   drawQuestUI(ctx, getActiveQuest());
 
-  ctx.fillStyle = "#fff";
-  ctx.font = "12px monospace";
-  let y = 20;
-
+  // Debug skills display
   drawSkillsDebug(ctx);
 
-
+  // Inventory overlay
   if (player.isInventoryOpen) {
     drawInventory(ctx, canvas, player);
   }
 
+  // Skill tree overlay (draw ON TOP of everything)
+  if (isSkillTreeOpen()) {
+    drawSkillTree(ctx, canvas, player);
+  }
+
+  // Death fade
   if (deathFade > 0) {
     ctx.save();
     ctx.globalAlpha = deathFade;
@@ -869,8 +858,8 @@ function render() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.restore();
   }
-
 }
+
 
 // ===== Draw Entities =====
 function drawEntities() {
@@ -921,10 +910,8 @@ function collidesWithTrees(x, y, size) {
   return false;
 }
 
-
 function drawEffects() {
   for (const fx of effects) {
-
     if (fx.type === "xpBurst") {
       const alpha = fx.timer / 0.3;
       ctx.beginPath();
@@ -935,7 +922,20 @@ function drawEffects() {
       fx.timer -= deltaTime;
     }
 
-    // --- Floating XP text ---
+    if (fx.type === "airPulse") {
+      fx.radius += 60 * deltaTime;
+      fx.alpha -= deltaTime * 1.5;
+
+      ctx.strokeStyle = `rgba(180,240,255,${fx.alpha})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, fx.radius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      fx.timer -= deltaTime;
+    }
+
+
     if (fx.type === "xpText") {
       fx.y += fx.vy * deltaTime;
       fx.alpha = fx.timer / 0.8;
@@ -949,10 +949,37 @@ function drawEffects() {
 
       fx.timer -= deltaTime;
     }
-  }
 
+    if (fx.type === "skillPoint") {
+      ctx.fillStyle = "#7fdfff";
+      ctx.font = "bold 14px monospace";
+      ctx.fillText(fx.text, fx.x, fx.y);
+      fx.y -= 20 * deltaTime;
+      fx.timer -= deltaTime;
+    }
+
+    if (fx.type === "wind") {
+      ctx.save();
+      ctx.globalAlpha = fx.alpha;
+      ctx.strokeStyle = "#9fe8ff";
+      ctx.lineWidth = 2;
+
+      ctx.beginPath();
+      ctx.moveTo(fx.x, fx.y);
+      ctx.lineTo(fx.x + fx.size, fx.y);
+      ctx.stroke();
+
+      ctx.restore();
+
+      fx.x += fx.vx * deltaTime;
+      fx.y += fx.vy * deltaTime;
+      fx.alpha -= deltaTime * 2;
+      fx.timer -= deltaTime;
+    }
+  }
   effects = effects.filter(fx => fx.timer > 0);
 }
+
 
 
 // ===== UI Layer =====
@@ -978,7 +1005,6 @@ function drawUI() {
 
   // Smooth XP animation
   displayedXP += (player.xp - displayedXP) * Math.min(1, deltaTime * 8);
-
   const xpRatio = Math.min(1, displayedXP / player.xpToNext);
 
   // ===== LEVEL HEADER =====
@@ -990,6 +1016,7 @@ function drawUI() {
   ctx.fillStyle = "#fff";
   ctx.font = "bold 14px monospace";
   ctx.fillText(`Lv ${player.level}`, baseX, baseY - 12);
+  ctx.fillText(`SP: ${player.skillPoints}`, baseX + 80, baseY - 12);
 
   ctx.shadowBlur = 0;
 
@@ -1000,7 +1027,6 @@ function drawUI() {
   ctx.fillStyle = "#6ecbff";
   ctx.fillRect(baseX, baseY, barWidth * xpRatio, barHeight);
 
-  // XP glow pulse
   if (xpFlashTimer > 0) {
     ctx.strokeStyle = `rgba(110,203,255,${xpFlashTimer * 4})`;
     ctx.lineWidth = 2;
@@ -1014,12 +1040,7 @@ function drawUI() {
   ctx.fillRect(baseX, hpY, barWidth, barHeight);
 
   ctx.fillStyle = "#e74c3c";
-  ctx.fillRect(
-    baseX,
-    hpY,
-    barWidth * (player.health / player.maxHealth),
-    barHeight
-  );
+  ctx.fillRect(baseX, hpY, barWidth * (player.health / player.maxHealth), barHeight);
 
   drawStatLabel("HP", baseX, hpY);
 
@@ -1030,12 +1051,7 @@ function drawUI() {
   ctx.fillRect(baseX, stY, barWidth, barHeight);
 
   ctx.fillStyle = "#2ecc71";
-  ctx.fillRect(
-    baseX,
-    stY,
-    barWidth * (player.stamina / player.maxStamina),
-    barHeight
-  );
+  ctx.fillRect(baseX, stY, barWidth * (player.stamina / player.maxStamina), barHeight);
 
   drawStatLabel("ST", baseX, stY);
 
@@ -1046,17 +1062,32 @@ function drawUI() {
   ctx.fillRect(baseX, spY, barWidth, barHeight);
 
   ctx.fillStyle = "#5dade2";
-  ctx.fillRect(
-    baseX,
-    spY,
-    barWidth * (player.spirit / player.maxSpirit),
-    barHeight
-  );
+  ctx.fillRect(baseX, spY, barWidth * (player.spirit / player.maxSpirit), barHeight);
 
   drawStatLabel("SP", baseX, spY);
 
+  // ===== ELEMENT + PASSIVES (HUD) =====
+  const activeElements = getActiveElements();
+  if (activeElements.length > 0) {
+    ctx.fillStyle = "#7fdfff";
+    ctx.font = "bold 12px monospace";
+    ctx.fillText(activeElements[0].toUpperCase(), baseX + 60, baseY - 12);
+  }
+
+  const passives = getUnlockedAirPassives();
+  let passiveY = spY + 22;
+
+  ctx.font = "11px monospace";
+  ctx.fillStyle = "#bfefff";
+
+  for (const p of passives) {
+    ctx.fillText(`🌬 ${p}`, baseX, passiveY);
+    passiveY += 14;
+  }
+
   ctx.restore();
 }
+
 
 
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {

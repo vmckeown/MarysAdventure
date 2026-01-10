@@ -8,14 +8,14 @@ const ruinImage = new Image();
 ruinImage.src = "./pics/ruins.png";
 
 export class Ruin {
-  constructor(x, y, element = ELEMENTS.AIR) {
+  constructor(x, y, elementKey = "air") {
     this.x = x;
     this.y = y;
-    this.element = element;
+    this.elementKey = elementKey;
 
-    // Your sprite is wider than a tile
-    this.width = 96;   // adjust to match image
+    this.width = 96;   
     this.height = 80;
+    this.elementKey = elementKey;
 
     this.activated = false;
   }
@@ -30,13 +30,21 @@ export class Ruin {
     if (this.activated) return;
 
     this.activated = true;
-    unlockElement(this.element);
+
+    console.log("🌀 Ruin elementKey:", this.elementKey);
+
+    unlockElement(this.elementKey);
+
     startDialogue(
-      ["The air stirs around you.", "You feel something awaken in the ruins..."],
+      [
+        "The air stirs around you.",
+        "You feel something awaken in the ruins..."
+      ],
       null,
-      true // FORCE it even if something is already active
+      true
     );
   }
+
 
 
   getCollisionBox() {

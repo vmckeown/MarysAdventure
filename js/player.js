@@ -3,6 +3,8 @@ import { isColliding, TILE_SIZE } from "./world.js";
 import { spawnIceBolt } from "./iceBolt.js";
 import { gainSkillXp } from "./skills.js";
 import { gainElementPoint, ELEMENTS } from "./elements.js";
+import { spawnSwiftStepParticle, spawnAirPulse } from "./skillTreeUI.js";
+
 
 const maryImage = new Image();
 maryImage.src = "./pics/Mary.png";
@@ -53,6 +55,8 @@ export class Player {
     this.health = 5;
     this.maxHealth = 5;
     this.displayXP = this.xp;
+    this.skillPoints = 0;
+
 
     this.isDead = false;
     this.deathTimer = 0;
@@ -77,6 +81,10 @@ export class Player {
     this.inventorySize = 12; // 3x4 grid later
     this.isInventoryOpen = false;
 
+    this.hasSwiftStep = false;
+    this.hasLightFooted = false;
+    this.airPulseTimer = 0;
+
     this.skills = {
       oneHanded: { level: 15, xp: 0, xpToNext: 100 },
       archery: { level: 15, xp: 0, xpToNext: 100 },
@@ -84,6 +92,8 @@ export class Player {
       lightArmor: { level: 15, xp: 0, xpToNext: 100 },
       magic: { level: 15, xp: 0, xpToNext: 100 }
     };
+
+    this.hasSwiftStep = false;
 
     for (let i = 0; i < this.inventorySize; i++) {
       this.inventory.push(null);
@@ -100,6 +110,16 @@ export class Player {
 
       return; // skip movement, input, attacks
     }
+
+    if (this.hasSwiftStep && this.isMoving) {
+      this.airPulseTimer -= dt;
+
+      if (this.airPulseTimer <= 0) {
+        spawnAirPulse(this.x, this.y);
+        this.airPulseTimer = 0.8;
+      }
+    }
+
 
     if (this.hitStunTimer > 0) {
       this.hitStunTimer -= dt;
@@ -200,11 +220,24 @@ export class Player {
       my /= len;
     }
 
+    if (this.hasLightFooted && this.isMoving) {
+      this.stamina = Math.min(this.maxStamina, this.stamina + 6 * dt);
+    }
+
     const nx = this.x + mx * this.speed * dt;
     const ny = this.y + my * this.speed * dt;
 
     if (!isColliding(nx, this.y, this.size, npcs, objects)) this.x = nx;
     if (!isColliding(this.x, ny, this.size, npcs, objects)) this.y = ny;
+
+    console.log(this.hasSwiftStep, this.isMoving)
+    
+    if (this.hasSwiftStep && this.isMoving) {
+      if (Math.random() < 0.35) {
+        spawnSwiftStepParticle(this.x, this.y);
+        console.log("Spawning particles")
+      }
+    }
   }
 
   startIceCast() {
@@ -303,6 +336,8 @@ export class Player {
     this.level++;
     this.xpToNext = Math.floor(this.xpToNext * 1.35);
     levelFlashTimer = 0.8;
+
+    this.skillPoints++; 
 
     // Basic stat growth
     this.maxHealth += 1;
