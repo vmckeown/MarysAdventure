@@ -1,4 +1,5 @@
-import { getVillagerDialogue, startDialogue } from "./dialogue.js";
+import { getVillagerDialogue, startDialogue, isDialogueActive } from "./dialogue.js";
+
 
 const npcImage = new Image();
 npcImage.src = "./pics/NPCs.png";
@@ -43,6 +44,23 @@ export class NPC {
       frameSize,
       frameSize
     );
+
+    const dx = this.x - player.x;
+    const dy = this.y - player.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist < 48 && !isDialogueActive()) {
+      ctx.save();
+      ctx.font = "12px monospace";
+      ctx.fillStyle = "rgba(0,0,0,0.7)";
+      ctx.fillRect(this.x - 30, this.y - 36, 60, 18);
+
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.fillText("[E] Talk", this.x, this.y - 22);
+      ctx.restore();
+
+    }
   }
 }
 

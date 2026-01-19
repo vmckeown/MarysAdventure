@@ -749,9 +749,26 @@ function render() {
   drawEntitiesSorted();
   drawSwiftStepParticles(ctx, deltaTime);
 
-  for (const ruin of ruins) {
-    ruin.draw(ctx);
+for (const ruin of ruins) {
+  ruin.draw(ctx);
+
+  if (ruin.isNear(player.x, player.y) && !ruin.activated) {
+    ctx.save();
+    ctx.font = "12px monospace";
+    ctx.fillStyle = "rgba(0,0,0,0.7)";
+    ctx.fillRect(ruin.x - 70, ruin.y - ruin.height / 2 - 24, 140, 18);
+
+    ctx.fillStyle = "#7fdfff";
+    ctx.textAlign = "center";
+    ctx.fillText(
+      "[E] Touch the Air Shrine",
+      ruin.x,
+      ruin.y - ruin.height / 2 - 10
+    );
+    ctx.restore();
   }
+}
+
 
   for (const item of items) {
     item.draw(ctx);
