@@ -123,7 +123,7 @@ export function setupWorld() {
         const row = [];
         for (let x = 0; x < WORLD_COLS; x++) {
             if (y === 0 || y === WORLD_ROWS - 1 || x === 0 || x === WORLD_COLS - 1) {
-                row.push(1); // wall tile
+                row.push(0); // wall tile
             } else {
                 row.push(0); // ground tile
             }

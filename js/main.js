@@ -40,6 +40,17 @@ function spawnTreeCluster(cx, cy, offsets, type) {
   );
 }
 
+let mapNameTimer = 0;
+let currentMapName = "";
+
+let mapFade = 0;
+let fadeDirection = 0;
+let isTransitioning = false;
+let pendingMapChange = null;
+let justTransitioned = false;
+
+
+
 setQuestUpdateHandler((quest) => {
   triggerQuestUI();
 
@@ -80,6 +91,7 @@ function drawSkillsDebug(ctx) {
 
   ctx.restore();
 }
+
 
 
 const ruins = [];
@@ -216,10 +228,20 @@ const ROCK_POSITIONS = [
   { x: 22, y: 45 }
 ];
 
+let worldX = 0;
+let worldY = 0;
 
+const WORLD_MAPS = {
+  "0,0": { name: "Village Outskirts" },
+  "1,0": { name: "Goblin Woods" },
+  "0,1": { name: "Northern Hills" }
+};
 
 let canvas, ctx;
 let deathFade = 0;
+
+let mapTransitionCooldown = 0;
+
 
 const tutorial = {
   moved: false,
@@ -248,7 +270,6 @@ window.addEventListener("DOMContentLoaded", () => {
   canvas = document.getElementById("gameCanvas");
   ctx = canvas.getContext("2d");
 
-  // Start your game here
   init();
 });
 
@@ -370,6 +391,70 @@ function getInventoryInput() {
   };
 }
 
+function checkMapTransition(player) {
+  if (mapTransitionCooldown > 0) return;
+  if (justTransitioned) return;
+
+  const transitionZone = TILE_SIZE;
+  const maxX = WORLD_COLS * TILE_SIZE;
+  const maxY = WORLD_ROWS * TILE_SIZE;
+
+  let dx = 0;
+  let dy = 0;
+
+  // Pick ONE convention. This matches your existing map list: "0,1" is north.
+  if (player.y <= transitionZone) dy = +1;                // NORTH
+  else if (player.y >= maxY - transitionZone) dy = -1;    // SOUTH
+
+  if (player.x <= transitionZone) dx = -1;                // WEST
+  else if (player.x >= maxX - transitionZone) dx = +1;    // EAST
+
+  if (dx === 0 && dy === 0) return;
+
+  const newKey = `${worldX + dx},${worldY + dy}`;
+  const mapExists = !!WORLD_MAPS[newKey];
+
+  // ✅ cooldown only when we actually attempt a transition
+  mapTransitionCooldown = 0.4;
+
+  justTransitioned = true;
+  fadeDirection = 1; 
+  console.log("🎬 Fade started");
+
+  const safePadding = transitionZone + TILE_SIZE;
+
+  // X reposition
+  if (dx !== 0) {
+    player.x = dx > 0
+      ? safePadding
+      : maxX - safePadding;
+  }
+
+  // Y reposition
+  if (dy !== 0) {
+    player.y = dy > 0
+      ? safePadding
+      : maxY - safePadding;
+  }
+
+  // If destination exists, advance world coords + show indicators
+  if (mapExists) {
+    worldX += dx;
+    worldY += dy;
+    console.log(`🌍 Entered map ${WORLD_MAPS[newKey].name}`);
+    currentMapName = WORLD_MAPS[newKey].name;
+    mapNameTimer = 2;
+    onEnterMap(`${worldX},${worldY}`);
+  } else {
+    // Debug proof even with only one map
+    console.log(`↩️ WRAP TEST (no map at ${newKey})`);
+    currentMapName = `WRAP TEST ${newKey}`;
+    mapNameTimer = 1.0;
+  }
+}
+
+
+
 function updateXPOrbs(dt) {
   for (const orb of xpOrbs) {
     if (orb.collected) continue;
@@ -424,7 +509,54 @@ function gameLoop(timestamp) {
 
 // ===== Update =====
 function update(dt) {
+  if (fadeDirection !== 0) {
+    mapFade += fadeDirection * dt * 2;
+
+    if (mapFade >= 1) {
+      mapFade = 1;
+      fadeDirection = -1; // reverse: fade in
+    }
+
+    if (mapFade <= 0) {
+      mapFade = 0;
+      fadeDirection = 0; // done
+    }
+    console.log("Fade:", mapFade.toFixed(2));
+  }
+
+  mapTransitionCooldown = Math.max(0, mapTransitionCooldown - dt);
+  if (justTransitioned && mapTransitionCooldown <= 0) {
+    justTransitioned = false;
+  }
+
   updateWorldAnimation(dt);
+
+  if (isTransitioning) {
+  mapFade += dt * 2;
+
+  if (mapFade >= 1 && pendingMapChange) {
+    worldX += pendingMapChange.dx;
+    worldY += pendingMapChange.dy;
+
+    const maxX = WORLD_COLS * TILE_SIZE;
+    const maxY = WORLD_ROWS * TILE_SIZE;
+
+    if (pendingMapChange.dx !== 0) {
+      player.x = pendingMapChange.dx > 0 ? TILE_SIZE * 2 : maxX - TILE_SIZE * 2;
+    }
+    if (pendingMapChange.dy !== 0) {
+      player.y = pendingMapChange.dy > 0 ? TILE_SIZE * 2 : maxY - TILE_SIZE * 2;
+    }
+
+    pendingMapChange = null;
+  }
+
+  if (mapFade >= 2) {
+    mapFade = 0;
+    isTransitioning = false;
+  }
+}
+
 
   const attackPressed = keys[" "] || keys["Space"];
   const inventoryPressed = wasKeyPressed("i");
@@ -474,6 +606,7 @@ function update(dt) {
     if (keys["d"] || keys["ArrowRight"]) mx += 1;
 
     player.handleMovementInput(mx, my, dt, npcs, objects);
+    checkMapTransition(player);
   }
 
   // ---- ATTACK ----
@@ -676,6 +809,15 @@ function handleItemPickup() {
   }
 }
 
+function onEnterMap(mapKey) {
+  console.log("🧭 onEnterMap:", mapKey);
+
+  // TEMP visual confirmation
+  currentMapName = WORLD_MAPS[mapKey]?.name || mapKey;
+  mapNameTimer = 2;
+}
+
+
 // ===== Camera (Smooth Follow) =====
 function updateCamera(dt) {
   const targetX = player.x - camera.width / 2;
@@ -740,6 +882,7 @@ function drawEntitiesSorted() {
 // ===== Render =====
 function render() {
   ctx.fillStyle = BACKGROUND_COLOR;
+
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
   ctx.save();
@@ -748,6 +891,8 @@ function render() {
   drawWorld(ctx, camera);
   drawEntitiesSorted();
   drawSwiftStepParticles(ctx, deltaTime);
+
+
 
 for (const ruin of ruins) {
   ruin.draw(ctx);
@@ -781,7 +926,22 @@ for (const ruin of ruins) {
       drawInteractionHint("Press Q", raft.x, raft.y);
     }
   }
-  
+
+  if (mapNameTimer > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(mapNameTimer, 1);
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(20, 20, 300, 32);
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "16px monospace";
+    ctx.fillText(currentMapName, 30, 42);
+
+    ctx.restore();
+
+    mapNameTimer -= deltaTime;
+  }
+
   drawEffects();
 
   // ===== Enemy Path & Vision Debug (leave as-is if you want debug) =====
@@ -874,6 +1034,29 @@ for (const ruin of ruins) {
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.restore();
+  }
+
+  if (mapFade > 0) {
+    ctx.save();
+    ctx.globalAlpha = mapFade;
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.restore();
+  }
+
+  if (mapNameTimer > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(mapNameTimer, 1);
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(20, 20, 300, 32);
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "16px monospace";
+    ctx.fillText(currentMapName, 30, 42);
+
+    ctx.restore();
+
+    mapNameTimer -= deltaTime;
   }
 }
 

@@ -5,7 +5,6 @@ import { gainSkillXp } from "./skills.js";
 import { gainElementPoint, ELEMENTS } from "./elements.js";
 import { spawnSwiftStepParticle, spawnAirPulse } from "./skillTreeUI.js";
 
-
 const maryImage = new Image();
 maryImage.src = "./pics/Mary.png";
 
@@ -230,8 +229,6 @@ export class Player {
     if (!isColliding(nx, this.y, this.size, npcs, objects)) this.x = nx;
     if (!isColliding(this.x, ny, this.size, npcs, objects)) this.y = ny;
 
-    console.log(this.hasSwiftStep, this.isMoving)
-    
     if (this.hasSwiftStep && this.isMoving) {
       if (Math.random() < 0.35) {
         spawnSwiftStepParticle(this.x, this.y);
