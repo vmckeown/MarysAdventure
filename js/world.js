@@ -205,6 +205,8 @@ export function drawWorld(ctx, camera) {
     const endCol   = Math.ceil((camera.x + camera.width) / TILE_SIZE);
     const startRow = Math.floor(camera.y / TILE_SIZE);
     const endRow   = Math.ceil((camera.y + camera.height) / TILE_SIZE);
+
+
     if (!isImageLoaded) return; // skip drawing if image isn't ready
 
     for (let row = 0; row < WORLD_ROWS; row++) {

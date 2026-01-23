@@ -287,6 +287,11 @@ let xpOrbs = [];
 let effects = [];
 
 // Camera
+
+let screenShakeTimer = 0;
+let screenShakeStrength = 0;
+
+
 let camera = {
   x: 0,
   y: 0,
@@ -294,6 +299,11 @@ let camera = {
   height: HEIGHT,
   speed: 5.0, // smoothing factor
 };
+
+export function triggerScreenShake(strength = 4, duration = 0.12) {
+  screenShakeStrength = strength;
+  screenShakeTimer = duration;
+}
 
 
 
@@ -509,6 +519,26 @@ function gameLoop(timestamp) {
 
 // ===== Update =====
 function update(dt) {
+  if (screenShakeTimer > 0) {
+    screenShakeTimer -= dt;
+  }
+
+  // ---- INVENTORY PAUSE ----
+  if (player.isInventoryOpen) {
+    updateInventoryCursor(
+      dt,
+      {
+        left: keys["a"] || keys["ArrowLeft"],
+        right: keys["d"] || keys["ArrowRight"],
+        up: keys["w"] || keys["ArrowUp"],
+        down: keys["s"] || keys["ArrowDown"],
+        confirm: wasKeyPressed("Enter") || wasKeyPressed(" ")
+      }
+    );
+    return;
+  }
+
+
   if (fadeDirection !== 0) {
     mapFade += fadeDirection * dt * 2;
 
@@ -706,41 +736,48 @@ function handleAttack(dt) {
   if (attackCooldown > 0) attackCooldown -= dt;
 
   if (attackPressed && attackCooldown <= 0) {
-    attackCooldown = ATTACK_COOLDOWN_TIME;
 
-    let hitSomething = false;
+      if (player.stamina < player.attackStaminaCost) {
+        return;
+      }
 
-    for (const enemy of enemies) {
-      if (!enemy.alive) continue;
+      player.stamina -= player.attackStaminaCost;
+      player.staminaRegenTimer = player.staminaRegenDelay;  
+      attackCooldown = ATTACK_COOLDOWN_TIME;
+      let hitSomething = false;
 
-      const dx = enemy.x - player.x;
-      const dy = enemy.y - player.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
 
-      if (dist < ATTACK_RANGE + enemy.size / 2) {
-        const angleToEnemy = Math.atan2(dy, dx);
+      for (const enemy of enemies) {
+        if (!enemy.alive) continue;
 
-        let facingAngle = 0;
-        switch (player.facing) {
-          case "right": facingAngle = 0; break;
-          case "down":  facingAngle = Math.PI / 2; break;
-          case "left":  facingAngle = Math.PI; break;
-          case "up":    facingAngle = -Math.PI / 2; break;
-        }
+        const dx = enemy.x - player.x;
+        const dy = enemy.y - player.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
 
-        const angleDiff = Math.abs(
-          Math.atan2(
-            Math.sin(angleToEnemy - facingAngle),
-            Math.cos(angleToEnemy - facingAngle)
-          )
-        );
+        if (dist < ATTACK_RANGE + enemy.size / 2) {
+          const angleToEnemy = Math.atan2(dy, dx);
 
-        if (angleDiff < Math.PI / 4) {
-          enemy.damage(1);
-          hitSomething = true;
+          let facingAngle = 0;
+          switch (player.facing) {
+            case "right": facingAngle = 0; break;
+            case "down":  facingAngle = Math.PI / 2; break;
+            case "left":  facingAngle = Math.PI; break;
+            case "up":    facingAngle = -Math.PI / 2; break;
+          }
+
+          const angleDiff = Math.abs(
+            Math.atan2(
+              Math.sin(angleToEnemy - facingAngle),
+              Math.cos(angleToEnemy - facingAngle)
+            )
+          );
+
+          if (angleDiff < Math.PI / 4) {
+            enemy.damage(1);
+            hitSomething = true;
+          }
         }
       }
-    }
   }
 }
 
@@ -879,46 +916,69 @@ function drawEntitiesSorted() {
 }
 
 
-// ===== Render =====
 function render() {
+  // Clear screen
   ctx.fillStyle = BACKGROUND_COLOR;
-
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
+  // ============================
+  // WORLD SPACE (shake + camera)
+  // ============================
   ctx.save();
+
+  // --- Screen shake ---
+  let shakeX = 0;
+  let shakeY = 0;
+
+  if (screenShakeTimer > 0) {
+    shakeX = (Math.random() * 2 - 1) * screenShakeStrength;
+    shakeY = (Math.random() * 2 - 1) * screenShakeStrength;
+  }
+
+  ctx.translate(shakeX, shakeY);
+
+  // --- Camera ---
   ctx.translate(-camera.x, -camera.y);
 
+  // --- World ---
   drawWorld(ctx, camera);
+
+  // --- Entities ---
   drawEntitiesSorted();
   drawSwiftStepParticles(ctx, deltaTime);
 
+  // --- Ruins ---
+  for (const ruin of ruins) {
+    ruin.draw(ctx);
 
+    if (ruin.isNear(player.x, player.y) && !ruin.activated) {
+      ctx.save();
+      ctx.font = "12px monospace";
+      ctx.fillStyle = "rgba(0,0,0,0.7)";
+      ctx.fillRect(
+        ruin.x - 70,
+        ruin.y - ruin.height / 2 - 24,
+        140,
+        18
+      );
 
-for (const ruin of ruins) {
-  ruin.draw(ctx);
-
-  if (ruin.isNear(player.x, player.y) && !ruin.activated) {
-    ctx.save();
-    ctx.font = "12px monospace";
-    ctx.fillStyle = "rgba(0,0,0,0.7)";
-    ctx.fillRect(ruin.x - 70, ruin.y - ruin.height / 2 - 24, 140, 18);
-
-    ctx.fillStyle = "#7fdfff";
-    ctx.textAlign = "center";
-    ctx.fillText(
-      "[E] Touch the Air Shrine",
-      ruin.x,
-      ruin.y - ruin.height / 2 - 10
-    );
-    ctx.restore();
+      ctx.fillStyle = "#7fdfff";
+      ctx.textAlign = "center";
+      ctx.fillText(
+        "[E] Touch the Air Shrine",
+        ruin.x,
+        ruin.y - ruin.height / 2 - 10
+      );
+      ctx.restore();
+    }
   }
-}
 
-
+  // --- Items ---
   for (const item of items) {
     item.draw(ctx);
   }
 
+  // --- Rafts ---
   for (const raft of rafts) {
     raft.draw(ctx);
 
@@ -927,28 +987,14 @@ for (const ruin of ruins) {
     }
   }
 
-  if (mapNameTimer > 0) {
-    ctx.save();
-    ctx.globalAlpha = Math.min(mapNameTimer, 1);
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(20, 20, 300, 32);
-
-    ctx.fillStyle = "#fff";
-    ctx.font = "16px monospace";
-    ctx.fillText(currentMapName, 30, 42);
-
-    ctx.restore();
-
-    mapNameTimer -= deltaTime;
-  }
-
+  // --- Effects (damage numbers later go here) ---
   drawEffects();
 
-  // ===== Enemy Path & Vision Debug (leave as-is if you want debug) =====
+  // --- Debug overlays ---
   for (const enemy of enemies) {
     if (!enemy.alive) continue;
 
-    // --- Path Visualization ---
+    // Path
     if (enemy.path && enemy.path.length > 0) {
       ctx.strokeStyle =
         enemy.state === ENEMY_STATE.CHASE
@@ -956,29 +1002,19 @@ for (const ruin of ruins) {
           : enemy.state === ENEMY_STATE.PATROL
           ? "yellow"
           : "orange";
+
       ctx.lineWidth = 2;
       ctx.beginPath();
 
       for (let i = 0; i < enemy.path.length; i++) {
         const tx = enemy.path[i].x * TILE_SIZE + TILE_SIZE / 2;
         const ty = enemy.path[i].y * TILE_SIZE + TILE_SIZE / 2;
-        if (i === 0) ctx.moveTo(tx, ty);
-        else ctx.lineTo(tx, ty);
+        i === 0 ? ctx.moveTo(tx, ty) : ctx.lineTo(tx, ty);
       }
       ctx.stroke();
-
-      // Draw path nodes as small dots
-      for (const node of enemy.path) {
-        const px = node.x * TILE_SIZE + TILE_SIZE / 2;
-        const py = node.y * TILE_SIZE + TILE_SIZE / 2;
-        ctx.fillStyle = "rgba(255,255,255,0.5)";
-        ctx.beginPath();
-        ctx.arc(px, py, 3, 0, Math.PI * 2);
-        ctx.fill();
-      }
     }
 
-    // --- Vision Range Visualization ---
+    // Vision
     ctx.beginPath();
     ctx.arc(enemy.x, enemy.y, enemy.visionRange, 0, Math.PI * 2);
     ctx.strokeStyle =
@@ -989,50 +1025,34 @@ for (const ruin of ruins) {
         : "rgba(255,165,0,0.3)";
     ctx.lineWidth = 1.5;
     ctx.stroke();
-
-    // Optional: line to player
-    const dx = player.x - enemy.x;
-    const dy = player.y - enemy.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < enemy.visionRange) {
-      ctx.beginPath();
-      ctx.moveTo(enemy.x, enemy.y);
-      ctx.lineTo(player.x, player.y);
-      ctx.strokeStyle = "rgba(255,0,0,0.3)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
   }
 
   drawIceBolts(ctx);
 
-  ctx.restore();
+  ctx.restore(); // END world space
 
-  // ----- UI Layer (screen-space) -----
+  // ============================
+  // SCREEN SPACE (UI only)
+  // ============================
   drawDialogue(ctx, canvas);
-
   drawUI();
   drawQuestUI(ctx, getActiveQuest());
-
-  // Debug skills display
   drawSkillsDebug(ctx);
 
-  // Inventory overlay
   if (player.isInventoryOpen) {
     drawInventory(ctx, canvas, player);
   }
 
-  // Skill tree overlay (draw ON TOP of everything)
   if (isSkillTreeOpen()) {
     drawSkillTree(ctx, canvas, player);
   }
 
-  // Death fade
+  // Fades
   if (deathFade > 0) {
     ctx.save();
     ctx.globalAlpha = deathFade;
     ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
     ctx.restore();
   }
 
@@ -1043,23 +1063,7 @@ for (const ruin of ruins) {
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
     ctx.restore();
   }
-
-  if (mapNameTimer > 0) {
-    ctx.save();
-    ctx.globalAlpha = Math.min(mapNameTimer, 1);
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(20, 20, 300, 32);
-
-    ctx.fillStyle = "#fff";
-    ctx.font = "16px monospace";
-    ctx.fillText(currentMapName, 30, 42);
-
-    ctx.restore();
-
-    mapNameTimer -= deltaTime;
-  }
 }
-
 
 // ===== Draw Entities =====
 function drawEntities() {

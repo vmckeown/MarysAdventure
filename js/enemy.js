@@ -16,6 +16,7 @@ import { items, Item } from "./items.js";
 import { startDialogue, closeDialogue} from "./dialogue.js";
 import { completeStep } from "./quests.js";
 import { gainSkillXp } from "./skills.js";
+import {triggerScreenShake} from "./main.js";
 
 
 export const enemies = [];
@@ -24,7 +25,9 @@ export const ENEMY_STATE = {
     IDLE: "idle",
     PATROL: "patrol",
     CHASE: "chase",
+    WINDUP: "windup",
     SEARCH: "search",
+    ATTACK: "attack",
     DEAD: "dead"
 };
 
@@ -163,6 +166,9 @@ export class Enemy {
 
         this.targetX = this.x;
         this.targetY = this.y;
+        this.windupTimer = 0;
+        this.windupDuration = 0.4; // seconds
+
 
         this.size = 28;
         this.color = a.color;
@@ -394,6 +400,14 @@ export class Enemy {
                 break;
             }
 
+            case ENEMY_STATE.ATTACK:
+                if (this.target && this.target.damage) {
+                    this.target.damage(1, this.x, this.y);
+                }
+
+                this.state = ENEMY_STATE.CHASE;
+                return;
+
             case ENEMY_STATE.PATROL: {
                 if (!this.path || this.pathIndex >= this.path.length) {
                     const start = worldToTile(this.x, this.y);
@@ -466,7 +480,9 @@ export class Enemy {
                 if (this.isWindingUp) {
                     if (this.attackTimer <= 0) {
                         if (combatDist <= 4) {
-                            player.damage?.(1, this.x, this.y);
+                            this.state = ENEMY_STATE.WINDUP;
+                            this.windupTimer = this.windupDuration;
+                            this.target = player;
                         }
 
                         this.isWindingUp = false;
@@ -522,6 +538,15 @@ export class Enemy {
 
                 break;
             }
+
+            case ENEMY_STATE.WINDUP:
+                this.windupTimer -= dt;
+
+                if (this.windupTimer <= 0) {
+                    this.state = ENEMY_STATE.ATTACK;
+                }
+                return; // freeze movement
+
 
             case ENEMY_STATE.SEARCH: {
                  if (seesPlayer) {
@@ -693,6 +718,8 @@ export class Enemy {
     damage(amount, sourceX, sourceY) {
         this.health -= amount;
 
+        triggerScreenShake(2, 0.06); 
+
         startDialogue([randomGoblinTaunt("hit")], {x: 0, y: 0}, true)
         gainSkillXp("melee", 1);
         ;
@@ -829,6 +856,17 @@ export class Enemy {
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.attackRange, 0, Math.PI * 2);
                 ctx.stroke();
+            }
+
+            if (this.state === ENEMY_STATE.WINDUP) {
+                ctx.save();
+                ctx.globalAlpha = 0.7;
+                ctx.strokeStyle = "red";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size / 2 + 4, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
             }
         ctx.restore();
 

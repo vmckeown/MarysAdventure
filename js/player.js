@@ -4,6 +4,7 @@ import { spawnIceBolt } from "./iceBolt.js";
 import { gainSkillXp } from "./skills.js";
 import { gainElementPoint, ELEMENTS } from "./elements.js";
 import { spawnSwiftStepParticle, spawnAirPulse } from "./skillTreeUI.js";
+import {triggerScreenShake} from "./main.js";
 
 const maryImage = new Image();
 maryImage.src = "./pics/Mary.png";
@@ -46,6 +47,12 @@ export class Player {
     this.castTimer = 0;
     this.castDuration = 0.35;
     this.spawnedBolt = false;
+
+    this.attackStaminaCost = 12;
+    this.staminaRegenDelay = 0.6;
+    this.staminaRegenTimer = 0;
+    this.staminaRegenRate = 20; // per second
+
 
     // Stats (restore for HUD)
     this.level = 1;
@@ -108,6 +115,15 @@ export class Player {
       }
 
       return; // skip movement, input, attacks
+    }
+
+    if (this.staminaRegenTimer > 0) {
+      this.staminaRegenTimer -= dt;
+    } else {
+      this.stamina = Math.min(
+        this.maxStamina,
+        this.stamina + this.staminaRegenRate * dt
+      );
     }
 
     if (this.hasSwiftStep && this.isMoving) {
@@ -276,6 +292,7 @@ export class Player {
 
     this.health = Math.max(0, this.health - amount);
     gainSkillXp("defense", 1);
+    triggerScreenShake(3, 0.08);
 
     if (this.health <= 0) {
       this.die();
