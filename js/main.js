@@ -7,7 +7,7 @@
 
 // ===== Global Variables =====
 
-import {setupWorld,isColliding,TILE_SIZE,WORLD_COLS,WORLD_ROWS,BACKGROUND_COLOR,drawWorld, updateWorldAnimation} from "./world.js";
+import {setupWorld,isColliding,TILE_SIZE,WORLD_COLS,WORLD_ROWS,BACKGROUND_COLOR,drawWorld, updateWorldAnimation, setActiveWorld, dungeonMap} from "./world.js";
 import { enemies, spawnEnemy, updateEnemies, ENEMY_STATE } from "./enemy.js";
 import { setupNPCs } from "./npc.js";
 import { setupInput, keys, wasKeyPressed } from "./input.js";
@@ -92,7 +92,24 @@ function drawSkillsDebug(ctx) {
   ctx.restore();
 }
 
+function enterDungeon() {
+  setActiveWorld(dungeonMap);
 
+  player.x = 16 * TILE_SIZE;
+  player.y = 13 * TILE_SIZE;
+
+  currentMapName = "Forgotten Cellar";
+  mapNameTimer = 2;
+}
+
+export function aabbIntersect(a, b) {
+  return (
+    a.x < b.x + b.width &&
+    a.x + a.width > b.x &&
+    a.y < b.y + b.height &&
+    a.y + a.height > b.y
+  );
+}
 
 const ruins = [];
 
@@ -359,6 +376,13 @@ for (const pos of ROCK_POSITIONS) {
 
   items.push(new Item(400, 300, "health"));
 
+  objects = [
+  ...objects, 
+  ...trees,
+  ...houses,
+  ...ruins
+  ];
+
   requestAnimationFrame(gameLoop);
 }
 
@@ -412,7 +436,6 @@ function checkMapTransition(player) {
   let dx = 0;
   let dy = 0;
 
-  // Pick ONE convention. This matches your existing map list: "0,1" is north.
   if (player.y <= transitionZone) dy = +1;                // NORTH
   else if (player.y >= maxY - transitionZone) dy = -1;    // SOUTH
 
@@ -1063,6 +1086,11 @@ function render() {
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
     ctx.restore();
   }
+}
+
+function drawDebugBox(ctx, box, color = "red") {
+  ctx.strokeStyle = color;
+  ctx.strokeRect(box.x, box.y, box.width, box.height);
 }
 
 // ===== Draw Entities =====

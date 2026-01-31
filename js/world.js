@@ -1,62 +1,89 @@
 import { Graphics } from "./graphics.js";
 import { trees, houses } from "./main.js";
 
+/* =========================
+   CONSTANTS
+========================= */
+
 export const TILE_SIZE = 32;
 export const WORLD_COLS = 50;
 export const WORLD_ROWS = 50;
 export const BACKGROUND_COLOR = "#333";
 const TILES_PER_ROW = 10;
 
+/* =========================
+   IMAGES
+========================= */
+
 export const tileImage = new Image();
-    tileImage.src = "./pics/background.png";
-    tileImage.onload = () => {
-    console.log("✅ Tile image loaded");
+tileImage.src = "./pics/background.png";
+
+let isImageLoaded = false;
+tileImage.onload = () => {
+  isImageLoaded = true;
 };
 
 export const backgroundImage = new Image();
 backgroundImage.src = "./pics/background.png";
+
 export const houseImage = new Image();
 houseImage.src = "./pics/house.png";
 
+/* =========================
+   TILE INDEXES
+========================= */
 
-let isImageLoaded = false;
-backgroundImage.onload = () => {
-    isImageLoaded = true;
+export const TILE_INDEX = {
+  TL_CORNER: 0,
+  TR_CORNER: 1,
+  VERTICAL: 2,
+  BL_CORNER: 3,
+  HORIZONTAL: 4,
+  BR_CORNER: 5,
+  H_LEFT_END: 6,
+  H_RIGHT_END: 7,
+
+  GRASS0: 10,
+  GRASS1: 11,
+  GRASS2: 12,
+  GRASS3: 13,
+  GRASS4: 14,
+  GRASS5: 15,
+  GRASS6: 16,
+  GRASS7: 17,
+  GRASS8: 18,
+
+  WATER: 20,
+  LAKE: 24,
+
+  // Dungeon tiles
+  DUNGEON_BACK_L: 80,
+  DUNGEON_BACK_M: 81,
+  DUNGEON_BACK_R: 82,
+  DUNGEON_SIDE_L: 83,
+  DUNGEON_SIDE_R: 84,
+  DUNGEON_FLOOR: 85,
+  DUNGEON_FRONT: 93,
+  DUNGEON_VOID: 94
 };
 
+/* =========================
+   COLLISION
+========================= */
 
-export const world = []
+export const SOLID_TILES = [
+  0, 1, 2, 3, 4, 5, 6, 7, 20, 24,
+  TILE_INDEX.DUNGEON_BACK_L,
+  TILE_INDEX.DUNGEON_BACK_M,
+  TILE_INDEX.DUNGEON_BACK_R,
+  TILE_INDEX.DUNGEON_SIDE_L,
+  TILE_INDEX.DUNGEON_SIDE_R,
+  TILE_INDEX.DUNGEON_FRONT
+];
 
-const TILE_INDEX = {
-    TL_CORNER: 0,
-    TR_CORNER: 1,
-    VERTICAL: 2,
-    BL_CORNER: 3,
-    HORIZONTAL: 4,
-    BR_CORNER: 5,
-    H_LEFT_END: 6,
-    H_RIGHT_END: 7,
-    GRASS0: 10,
-    GRASS1: 11,
-    GRASS2: 12,
-    GRASS3: 13,
-    GRASS4: 14,
-    GRASS5: 15,
-    GRASS6: 16,
-    GRASS7: 17,
-    GRASS8: 18,
-    WATER: 20,
-    LAKE: 24,
-
-};
-
-export const SOLID_TILES = [0, 1, 2, 3, 4, 5, 6, 7, 18, 20, 24]; 
-const ANIMATED_TILES = {
-    20: { frames: [20, 21, 22, 23], speed: 0.2 } // Frame indexes for animation, frame duration
-};
-
-let animationTimer = 0;
-let animationFrame = 0;
+/* =========================
+   OVERWORLD MAPS
+========================= */
 
 export const worldMap = [
   [10, 11, 12, 13, 14, 15, 14, 12, 11, 10, 14, 13, 15, 14, 12, 11, 10, 14, 13, 16, 20, 17, 11, 10, 14, 13, 15, 15, 12, 11, 10, 14, 13, 15, 14, 12, 11, 10, 14, 13, 15, 14, 12, 11, 10, 14, 13, 15, 13, 12],
@@ -113,7 +140,6 @@ export const worldMap = [
   [24, 17, 12, 14, 13, 11, 14, 15, 12, 10, 14, 13, 15, 11, 12, 14, 10, 14, 13, 16, 20, 17, 14, 10, 14, 13, 15, 12, 11, 14, 10, 14, 13, 15, 12, 11, 14, 10, 14, 13, 15, 12, 11, 14, 10, 14, 13, 15, 13, 14],
   [24, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 20, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18],
   [24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24],
-
 ];
 
 export const worldMap_01 = [
@@ -168,169 +194,201 @@ export const worldMap_01 = [
   [24, 17, 14, 10, 11, 12, 13, 14, 15, 14, 11, 10, 12, 13, 14, 15, 14, 11, 10, 16, 20, 17, 15, 14, 11, 10, 12, 13, 14, 15, 14, 11, 10, 12, 13, 14, 15, 14, 11, 10, 12, 13, 14, 15, 14, 11, 10, 12, 13, 12],
   [24, 17, 10, 14, 11, 14, 12, 13, 10, 15, 14, 11, 13, 14, 10, 12, 15, 14, 11, 16, 20, 17, 12, 15, 14, 11, 13, 10, 14, 12, 15, 14, 11, 13, 10, 14, 12, 15, 14, 11, 13, 10, 14, 12, 15, 14, 11, 13, 10, 14],
   [24, 17, 11, 15, 12, 10, 13, 14, 11, 14, 15, 12, 14, 10, 11, 13, 14, 15, 12, 16, 20, 17, 13, 14, 15, 12, 14, 11, 10, 13, 14, 15, 12, 14, 11, 10, 13, 14, 15, 12, 14, 11, 10, 13, 14, 15, 12, 14, 11, 10],
-  [24, 17, 15, 14, 10, 11, 12, 15, 14, 13, 10, 14, 11, 12, 15, 14, 13, 10, 14, 16, 20, 17, 14, 13, 10, 14, 11, 12, 15, 14, 13, 10, 14, 11, 12, 15, 14, 13, 10, 14, 11, 12, 15, 14, 13, 10, 14, 11, 14, 10],
-  [24, 17, 14, 10, 11, 12, 13, 14, 15, 14, 11, 10, 12, 13, 14, 15, 14, 11, 10, 16, 20, 17, 15, 14, 11, 10, 12, 13, 14, 15, 14, 11, 10, 12, 13, 14, 15, 14, 11, 10, 12, 13, 14, 15, 14, 11, 10, 12, 13, 12],
-  [24, 17, 10, 14, 11, 14, 12, 13, 10, 15, 14, 11, 13, 14, 10, 12, 15, 14, 11, 16, 20, 17, 12, 15, 14, 11, 13, 10, 14, 12, 15, 14, 11, 13, 10, 14, 12, 15, 14, 11, 13, 10, 14, 12, 15, 14, 11, 13, 10, 14]
-
+  [24, 17, 12, 14, 13, 11, 14, 15, 12, 10, 14, 13, 15, 11, 12, 14, 10, 14, 13, 16, 20, 17, 14, 10, 14, 13, 15, 12, 11, 14, 10, 14, 13, 15, 12, 11, 14, 10, 14, 13, 15, 12, 11, 14, 10, 14, 13, 15, 13, 14],
+  [24, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 20, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18],
+  [24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24],
 ];
 
+/* =========================
+   DUNGEON MAP
+========================= */
+
+export const dungeonMap = Array.from({ length: WORLD_ROWS }, () =>
+  Array.from({ length: WORLD_COLS }, () => TILE_INDEX.DUNGEON_VOID)
+);
+
+function carveRoom(map, x, y, w, h) {
+  for (let r = y; r < y + h; r++) {
+    for (let c = x; c < x + w; c++) {
+      map[r][c] = TILE_INDEX.DUNGEON_FLOOR;
+    }
+  }
+}
+
+function addDungeonWalls(map) {
+  for (let y = 1; y < WORLD_ROWS - 1; y++) {
+    for (let x = 1; x < WORLD_COLS - 1; x++) {
+      if (map[y][x] !== TILE_INDEX.DUNGEON_FLOOR) continue;
+
+      if (map[y - 1][x] === TILE_INDEX.DUNGEON_VOID)
+        map[y - 1][x] = TILE_INDEX.DUNGEON_BACK_M;
+
+      if (map[y + 1][x] === TILE_INDEX.DUNGEON_VOID)
+        map[y + 1][x] = TILE_INDEX.DUNGEON_FRONT;
+
+      if (map[y][x - 1] === TILE_INDEX.DUNGEON_VOID)
+        map[y][x - 1] = TILE_INDEX.DUNGEON_SIDE_L;
+
+      if (map[y][x + 1] === TILE_INDEX.DUNGEON_VOID)
+        map[y][x + 1] = TILE_INDEX.DUNGEON_SIDE_R;
+    }
+  }
+}
+
+// Carve dungeon layout
+carveRoom(dungeonMap, 10, 10, 8, 6);
+carveRoom(dungeonMap, 22, 10, 10, 6);
+carveRoom(dungeonMap, 22, 22, 12, 8);
+addDungeonWalls(dungeonMap);
+
+/* =========================
+   ACTIVE WORLD HANDLING
+========================= */
+
+let activeWorld = worldMap;
+
+export function setActiveWorld(map) {
+  activeWorld = map;
+}
+
 export function setupWorld() {
-    world.length = 0;
-
-    for (let y = 0; y < WORLD_ROWS; y++) {
-        const row = [];
-        for (let x = 0; x < WORLD_COLS; x++) {
-            if (y === 0 || y === WORLD_ROWS - 1 || x === 0 || x === WORLD_COLS - 1) {
-                row.push(0); // wall tile
-            } else {
-                row.push(0); // ground tile
-            }
-        }
-        world.push(row);
-    }
+  activeWorld = worldMap;
 }
 
-export function updateWorldAnimation(dt) {
-    animationTimer += dt;
-    const frameDuration = 0.2; // Seconds per frame
-
-    if (animationTimer >= frameDuration) {
-        animationFrame = (animationFrame + 1) % 4; // Assuming 4 frames
-        animationTimer = 0;
-    }
-}
-
-export function drawWorld(ctx, camera) {
-    const startCol = Math.floor(camera.x / TILE_SIZE);
-    const endCol   = Math.ceil((camera.x + camera.width) / TILE_SIZE);
-    const startRow = Math.floor(camera.y / TILE_SIZE);
-    const endRow   = Math.ceil((camera.y + camera.height) / TILE_SIZE);
-
-
-    if (!isImageLoaded) return; // skip drawing if image isn't ready
-
-    for (let row = 0; row < WORLD_ROWS; row++) {
-            for (let col = 0; col < WORLD_COLS; col++) {
-                const tile = worldMap[row][col];
-                let tileToDraw = tile;
-                if (ANIMATED_TILES[tile]) {
-                    const anim = ANIMATED_TILES[tile];
-
-                    // Offset animation by tile position for natural flow
-                    const offset = (row + col) % anim.frames.length;
-                    tileToDraw = anim.frames[
-                        (animationFrame + offset) % anim.frames.length
-                    ];
-                }
-
-                const sx = (tileToDraw % TILES_PER_ROW) * TILE_SIZE;
-                const sy = Math.floor(tileToDraw / TILES_PER_ROW) * TILE_SIZE;
-                const dx = col * TILE_SIZE;
-                const dy = row * TILE_SIZE;
-
-                ctx.drawImage(tileImage, sx, sy, TILE_SIZE, TILE_SIZE, dx, dy, TILE_SIZE, TILE_SIZE);
-            }
-        }
-    }
-
-function checkBoxCollision(x, y, size, other) {
+export function isColliding(nextX, nextY, size, npcs = [], objects = []) {
   const half = size / 2;
 
-  return (
-    x + half > other.x - other.size / 2 &&
-    x - half < other.x + other.size / 2 &&
-    y + half > other.y - other.size / 2 &&
-    y - half < other.y + other.size / 2
-  );
-}
+  // --- TILE COLLISION ---
+  const leftTile   = Math.floor((nextX - half) / TILE_SIZE);
+  const rightTile  = Math.floor((nextX + half - 1) / TILE_SIZE);
+  const topTile    = Math.floor((nextY - half) / TILE_SIZE);
+  const bottomTile = Math.floor((nextY + half - 1) / TILE_SIZE);
 
-export function isColliding(x, y, size, npcs = [], objects = []) {
-  // Tile collision
-  if (isSolidTile(x, y, size)) return true;
+  for (let ty = topTile; ty <= bottomTile; ty++) {
+    for (let tx = leftTile; tx <= rightTile; tx++) {
+      const tile = getTile(tx, ty);
 
-  // Tree collision
-  for (const tree of trees) {
-    const b = tree.getCollisionBox();
-    if (
-      x + size / 2 > b.x &&
-      x - size / 2 < b.x + b.width &&
-      y + size / 2 > b.y &&
-      y - size / 2 < b.y + b.height
-    ) {
-      return true;
-    }
-  }
+      if (tile !== null && SOLID_TILES.includes(tile)) {
+        console.log(
+          "[TILE COLLISION]",
+          "tile:", tile,
+          "at:", tx, ty,
+          "player:", Math.floor(nextX / TILE_SIZE), Math.floor(nextY / TILE_SIZE)
+        );
 
-  // houses
-  for (const house of houses) {
-  const b = house.getCollisionBox();
-  if (
-    x + size / 2 > b.x &&
-    x - size / 2 < b.x + b.width &&
-    y + size / 2 > b.y &&
-    y - size / 2 < b.y + b.height
-  ) {
-    return true;
-  }
-
-   // ---- check solid objects (rocks, etc) ----
-  for (const obj of objects) {
-    if (!obj.solid || !obj.getCollisionBox) continue;
-
-    const b = obj.getCollisionBox();
-
-    if (
-      x + size / 2 > b.x &&
-      x - size / 2 < b.x + b.width &&
-      y + size / 2 > b.y &&
-      y - size / 2 < b.y + b.height
-    ) {
-      return true;
-    }
-  }
-
-    return false;
-  }
-
-
-  // NPC collision
-  for (const npc of npcs) {
-    if (checkBoxCollision(x, y, size, npc)) {
         return true;
       }
     }
+  }
 
-  return false;
-}
-
-export function isSolidTile(x, y, size) {
-  const half = size / 2;
-
-  const points = [
-    { x: x - half, y: y - half },
-    { x: x + half, y: y - half },
-    { x: x - half, y: y + half },
-    { x: x + half, y: y + half }
-  ];
-
-  for (const p of points) {
-    const tx = Math.floor(p.x / TILE_SIZE);
-    const ty = Math.floor(p.y / TILE_SIZE);
-
-    const tile = getTile(tx, ty);
-    if (SOLID_TILES.includes(tile)) {
+  // --- NPC COLLISION ---
+  for (const npc of npcs) {
+    if (!npc || npc.isDead) continue;
+    if (Math.abs(npc.x - nextX) < size && Math.abs(npc.y - nextY) < size) {
       return true;
     }
   }
 
-  return false;
+  // --- OBJECT COLLISION ---
+  const playerBox = {
+    x: nextX - half,
+    y: nextY - half,
+    width: size,
+    height: size
+  };
+
+  for (const obj of objects) {
+    if (!obj.getCollisionBox) continue;
+
+    const box = obj.getCollisionBox();
+
+    if (
+      playerBox.x < box.x + box.width &&
+      playerBox.x + playerBox.width > box.x &&
+      playerBox.y < box.y + box.height &&
+      playerBox.y + playerBox.height > box.y
+    ) {
+      return true;
+    }
+  }
 }
 
 export function getTile(tx, ty) {
-    if (tx < 0 || ty < 0 || tx >= WORLD_COLS || ty >= WORLD_ROWS) return 1;
-    return worldMap[ty][tx];
+  if (tx < 0 || ty < 0 || tx >= WORLD_COLS || ty >= WORLD_ROWS) return null;
+  return activeWorld[ty][tx];
 }
 
-export function worldToTile(wx, wy) {
-    return { x: Math.floor(wx / TILE_SIZE), y: Math.floor(wy / TILE_SIZE) };
+export function worldToTile(value) {
+  return Math.floor(value / TILE_SIZE);
+}
+
+/* =========================
+   COLLISION HELPERS
+========================= */
+
+export function isSolidTile(x, y, size) {
+  const left   = worldToTile(x - size / 2);
+  const right  = worldToTile(x + size / 2);
+  const top    = worldToTile(y - size / 2);
+  const bottom = worldToTile(y + size / 2);
+
+  return (
+    SOLID_TILES.includes(getTile(left, top)) ||
+    SOLID_TILES.includes(getTile(right, top)) ||
+    SOLID_TILES.includes(getTile(left, bottom)) ||
+    SOLID_TILES.includes(getTile(right, bottom))
+  );
+}
+
+/* =========================
+   TILE ANIMATION
+========================= */
+
+let animationTimer = 0;
+let animationFrame = 0;
+
+const ANIMATED_TILES = {
+  20: { frames: [20, 21, 22, 23], speed: 0.2 }
+};
+
+export function updateWorldAnimation(dt) {
+  animationTimer += dt;
+  if (animationTimer >= 0.2) {
+    animationFrame = (animationFrame + 1) % 4;
+    animationTimer = 0;
+  }
+}
+
+/* =========================
+   DRAW WORLD
+========================= */
+
+export function drawWorld(ctx, camera) {
+  if (!isImageLoaded) return;
+
+  for (let row = 0; row < WORLD_ROWS; row++) {
+    for (let col = 0; col < WORLD_COLS; col++) {
+      let tile = activeWorld[row][col];
+      let tileToDraw = tile;
+
+      if (ANIMATED_TILES[tile]) {
+        const anim = ANIMATED_TILES[tile];
+        const offset = (row + col) % anim.frames.length;
+        tileToDraw =
+          anim.frames[(animationFrame + offset) % anim.frames.length];
+      }
+
+      const sx = (tileToDraw % TILES_PER_ROW) * TILE_SIZE;
+      const sy = Math.floor(tileToDraw / TILES_PER_ROW) * TILE_SIZE;
+
+      ctx.drawImage(
+        tileImage,
+        sx, sy, TILE_SIZE, TILE_SIZE,
+        col * TILE_SIZE,
+        row * TILE_SIZE,
+        TILE_SIZE,
+        TILE_SIZE
+      );
+    }
+  }
 }
