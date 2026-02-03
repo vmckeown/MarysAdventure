@@ -299,7 +299,7 @@ let lastKeyState = {};
 
 // Entities
 let npcs = [];
-let objects = [];
+export let objects = [];
 let xpOrbs = [];
 let effects = [];
 
@@ -898,6 +898,58 @@ function updateCamera(dt) {
 // ===== Input Helper for Single Key Press Detection =====
 let previousKeys = {};
 
+export function drawBlockedTiles(ctx) {
+  console.log("drawBlockedTiles ctx:", ctx);
+
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = "red";
+
+  for (let ty = 0; ty < WORLD_ROWS; ty++) {
+    for (let tx = 0; tx < WORLD_COLS; tx++) {
+
+      let blocked = false;
+
+      // Tile-based blocking
+      const tile = getTile(tx, ty);
+      if (SOLID_TILES.includes(tile)) {
+        blocked = true;
+      }
+
+      // Object-based blocking
+      if (!blocked) {
+        for (const obj of objects) {
+          if (!obj.blocksMovement) continue;
+
+          const left   = Math.floor(obj.x / TILE_SIZE);
+          const top    = Math.floor(obj.y / TILE_SIZE);
+          const right  = Math.floor((obj.x + obj.width) / TILE_SIZE);
+          const bottom = Math.floor((obj.y + obj.height) / TILE_SIZE);
+
+          if (tx >= left && tx <= right && ty >= top && ty <= bottom) {
+            blocked = true;
+            break;
+          }
+        }
+      }
+
+      if (blocked) {
+        ctx.fillRect(
+          tx * TILE_SIZE,
+          ty * TILE_SIZE,
+          TILE_SIZE,
+          TILE_SIZE
+        );
+      }
+    }
+  }
+
+  ctx.restore();
+}
+
+
+
+
 function drawEntitiesSorted() {
   const renderables = [];
 
@@ -939,7 +991,7 @@ function drawEntitiesSorted() {
 }
 
 
-function render() {
+function render(ctx) {
   // Clear screen
   ctx.fillStyle = BACKGROUND_COLOR;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -968,6 +1020,7 @@ function render() {
 
   // --- Entities ---
   drawEntitiesSorted();
+  drawBlockedTiles();
   drawSwiftStepParticles(ctx, deltaTime);
 
   // --- Ruins ---

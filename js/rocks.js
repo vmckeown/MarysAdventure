@@ -8,6 +8,7 @@ export class Rock {
     this.y = y;
     this.size = size;
     this.solid = true;
+    this.blocksMovement = true;
   }
 
   draw(ctx) {

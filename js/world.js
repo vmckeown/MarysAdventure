@@ -1,5 +1,5 @@
 import { Graphics } from "./graphics.js";
-import { trees, houses } from "./main.js";
+import { trees, houses, objects } from "./main.js";
 
 /* =========================
    CONSTANTS
@@ -51,7 +51,7 @@ export const TILE_INDEX = {
   GRASS5: 15,
   GRASS6: 16,
   GRASS7: 17,
-  GRASS8: 18,
+  WATEREDGE_GRASS8: 18,
 
   WATER: 20,
   LAKE: 24,
@@ -72,13 +72,8 @@ export const TILE_INDEX = {
 ========================= */
 
 export const SOLID_TILES = [
-  0, 1, 2, 3, 4, 5, 6, 7, 20, 24,
-  TILE_INDEX.DUNGEON_BACK_L,
-  TILE_INDEX.DUNGEON_BACK_M,
-  TILE_INDEX.DUNGEON_BACK_R,
-  TILE_INDEX.DUNGEON_SIDE_L,
-  TILE_INDEX.DUNGEON_SIDE_R,
-  TILE_INDEX.DUNGEON_FRONT
+  0, 1, 2, 3, 4, 5, 6, 7, 18, 20, 24,
+  80, 81, 82, 83, 84, 85, 93, 94 
 ];
 
 /* =========================
@@ -255,6 +250,32 @@ export function setupWorld() {
   activeWorld = worldMap;
 }
 
+export function isTileBlockedByObject(tx, ty) {
+  const tileWorldX = tx * TILE_SIZE;
+  const tileWorldY = ty * TILE_SIZE;
+
+  for (const obj of objects) {
+    if (!obj || !obj.blocksMovement) continue;
+
+    const ox = obj.x;
+    const oy = obj.y;
+    const ow = obj.width;
+    const oh = obj.height;
+
+    // AABB overlap (tile vs object)
+    if (
+      tileWorldX + TILE_SIZE > ox &&
+      tileWorldX < ox + ow &&
+      tileWorldY + TILE_SIZE > oy &&
+      tileWorldY < oy + oh
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export function isColliding(nextX, nextY, size, npcs = [], objects = []) {
   const half = size / 2;
 
@@ -269,13 +290,6 @@ export function isColliding(nextX, nextY, size, npcs = [], objects = []) {
       const tile = getTile(tx, ty);
 
       if (tile !== null && SOLID_TILES.includes(tile)) {
-        console.log(
-          "[TILE COLLISION]",
-          "tile:", tile,
-          "at:", tx, ty,
-          "player:", Math.floor(nextX / TILE_SIZE), Math.floor(nextY / TILE_SIZE)
-        );
-
         return true;
       }
     }
@@ -314,9 +328,25 @@ export function isColliding(nextX, nextY, size, npcs = [], objects = []) {
 }
 
 export function getTile(tx, ty) {
-  if (tx < 0 || ty < 0 || tx >= WORLD_COLS || ty >= WORLD_ROWS) return null;
+  if (
+    typeof tx !== "number" ||
+    typeof ty !== "number" ||
+    Number.isNaN(tx) ||
+    Number.isNaN(ty)
+  ) {
+    if (Number.isNaN(tx) || Number.isNaN(ty)) {
+      debugger;
+    }
+
+    return null;
+  }
+
+  if (ty < 0 || ty >= activeWorld.length) return null;
+  if (tx < 0 || tx >= activeWorld[0].length) return null;
+
   return activeWorld[ty][tx];
 }
+
 
 export function worldToTile(value) {
   return Math.floor(value / TILE_SIZE);

@@ -1,5 +1,4 @@
-import { getTile, TILE_SIZE, SOLID_TILES, WORLD_COLS,  WORLD_ROWS } from "./world.js";
-
+import { getTile, TILE_SIZE, SOLID_TILES, WORLD_COLS,  WORLD_ROWS, isTileBlockedByObject } from "./world.js";
 
 // ===== PATHFINDING (A*) =====
 export function findPath(start, goal) {
@@ -47,14 +46,16 @@ export function findPath(start, goal) {
         for (const neighbor of getNeighbors(current)) {
             const nKey = key(neighbor);
 
-            // Ignore invalid or solid tiles
-            if (
-                neighbor.x < 0 ||
-                neighbor.y < 0 ||
-                neighbor.x >= WORLD_COLS ||
-                neighbor.y >= WORLD_ROWS ||
-                isTileSolid(neighbor.x, neighbor.y)
-            ) continue;
+        // Ignore invalid or solid tiles
+        if (
+            neighbor.x < 0 ||
+            neighbor.y < 0 ||
+            neighbor.x >= WORLD_COLS ||
+            neighbor.y >= WORLD_ROWS ||
+            isTileSolid(neighbor.x, neighbor.y) ||
+            isTileBlockedByObject(neighbor.x, neighbor.y)
+        ) continue;
+
 
             if (closedSet.has(nKey)) continue;
 

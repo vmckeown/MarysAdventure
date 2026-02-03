@@ -35,6 +35,7 @@ export class Tree {
 
     this.collisionX = this.x - this.collisionWidth / 2;
     this.collisionY = this.y - this.collisionHeight;
+    this.blocksMovement = true;  
   }
 
   getCollisionBox() {

@@ -21,6 +21,7 @@ export class House {
 
     this.collisionX = this.x - this.collisionWidth / 2;
     this.collisionY = this.y - this.collisionHeight;
+    this.blocksMovement = true;
 
     // Depth sorting helper
     this.depthOffset = this.height - this.collisionHeight;
