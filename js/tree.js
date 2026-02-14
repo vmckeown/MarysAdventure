@@ -39,13 +39,17 @@ export class Tree {
   }
 
   getCollisionBox() {
+    const TRUNK_WIDTH  = 5;   
+    const TRUNK_HEIGHT = 5;
+
     return {
-      x: this.collisionX,
-      y: this.collisionY,
-      width: this.collisionWidth,
-      height: this.collisionHeight
+      x: this.x - TRUNK_WIDTH / 2,
+      y: this.y - TRUNK_HEIGHT,
+      width: TRUNK_WIDTH,
+      height: TRUNK_HEIGHT
     };
   }
+
 
   draw(ctx) {
     ctx.drawImage(
@@ -59,6 +63,12 @@ export class Tree {
       this.width,
       this.height
     );
+      const box = this.getCollisionBox();
+      ctx.save();
+      ctx.strokeStyle = "cyan";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(box.x, box.y, box.width, box.height);
+      ctx.restore();
   }
 }
 

@@ -290,8 +290,28 @@ export function isColliding(nextX, nextY, size, npcs = [], objects = []) {
       const tile = getTile(tx, ty);
 
       if (tile !== null && SOLID_TILES.includes(tile)) {
+         console.log("[COLLISION] Player blocked by TILE", { tx, ty, tile });
         return true;
       }
+    }
+  }
+
+  for (const obj of objects) {
+    if (!obj.blocksMovement) continue;
+
+    const hit =
+      nextX + half > obj.x &&
+      nextX - half < obj.x + obj.width &&
+      nextY + half > obj.y &&
+      nextY - half < obj.y + obj.height;
+
+    if (hit) {
+    /*  console.log(
+        "[COLLISION] Player blocked by OBJECT",
+        obj.constructor.name,
+        obj
+      ); */
+      return true;
     }
   }
 

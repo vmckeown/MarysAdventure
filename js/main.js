@@ -7,7 +7,7 @@
 
 // ===== Global Variables =====
 
-import {setupWorld,isColliding,TILE_SIZE,WORLD_COLS,WORLD_ROWS,BACKGROUND_COLOR,drawWorld, updateWorldAnimation, setActiveWorld, dungeonMap} from "./world.js";
+import {setupWorld,isColliding,getTile, SOLID_TILES, TILE_SIZE,WORLD_COLS,WORLD_ROWS,BACKGROUND_COLOR,drawWorld, updateWorldAnimation, setActiveWorld, dungeonMap} from "./world.js";
 import { enemies, spawnEnemy, updateEnemies, ENEMY_STATE } from "./enemy.js";
 import { setupNPCs } from "./npc.js";
 import { setupInput, keys, wasKeyPressed } from "./input.js";
@@ -32,13 +32,6 @@ import { ELEMENTS, getActiveElements} from "./elements.js";
 import {toggleSkillTree, drawSkillTree, isSkillTreeOpen, handleSkillTreeInput, getUnlockedAirPassives, drawSwiftStepParticles } from "./skillTreeUI.js";
 
 export const houses = [];
-const QUEST_FLASH_DURATION = 1.2;
-
-function spawnTreeCluster(cx, cy, offsets, type) {
-  return offsets.map(([dx, dy]) =>
-    new Tree(cx + dx, cy + dy, TREE_TYPES[type])
-  );
-}
 
 let mapNameTimer = 0;
 let currentMapName = "";
@@ -128,26 +121,17 @@ let questFlashTimer = 0;
 
 const rafts = [];
 
-function spawnTreeArea({
-  xMin,
-  xMax,
-  yMin,
-  yMax,
-  count,
-  type,
-  minSpacing = 24
-  }) {
+function spawnTreeArea({ xMin, xMax, yMin, yMax, count, type, minSpacing = 24 }) {
   const placed = [];
 
-
   let attempts = 0;
-  const MAX_ATTEMPTS = count * 10;
+  const MAX_ATTEMPTS = 1// count * 10;
 
   while (placed.length < count && attempts < MAX_ATTEMPTS) {
     attempts++;
 
-    const x = Math.random() * (xMax - xMin) + xMin;
-    const y = Math.random() * (yMax - yMin) + yMin;
+    const x = 200 /*Math.random() * (xMax - xMin) + xMin;*/
+    const y = 1400 /*Math.random() * (yMax - yMin) + yMin;*/
 
     // Prevent clumping
     let tooClose = false;
@@ -162,11 +146,22 @@ function spawnTreeArea({
 
     if (tooClose) continue;
 
-    placed.push(new Tree(x, y, TREE_TYPES[randomTreeType()]));
+    const tree = new Tree(x, y, TREE_TYPES[randomTreeType()]);
+
+    console.log("[TREE CREATED]", {
+      x: tree.x,
+      y: tree.y,
+      width: tree.width,
+      height: tree.height,
+      blocksMovement: tree.blocksMovement
+    });
+
+    placed.push(tree);
   }
 
   return placed;
 }
+
 
 const TREE_VARIANTS = ["PineTree1", "PineTree2"];
 
@@ -184,7 +179,7 @@ export const trees = [
     type: "PineTree1"
   }),
 
-  ...spawnTreeArea({
+ /* ...spawnTreeArea({
     xMin: 750,
     xMax: 1300,
     yMin: 0,
@@ -228,7 +223,7 @@ export const trees = [
     yMax: 1500,
     count: 100,
     type: "PineTree1"
-  }),
+  }), */
 
 ];
 
@@ -535,7 +530,7 @@ function gameLoop(timestamp) {
   lastTime = timestamp;
 
   update(deltaTime);
-  render();
+  render(ctx);
 
   requestAnimationFrame(gameLoop);
 }
@@ -897,9 +892,11 @@ function updateCamera(dt) {
 
 // ===== Input Helper for Single Key Press Detection =====
 let previousKeys = {};
-
 export function drawBlockedTiles(ctx) {
-  console.log("drawBlockedTiles ctx:", ctx);
+  if (!ctx) {
+    console.warn("drawBlockedTiles called without ctx");
+    return;
+  }
 
   ctx.save();
   ctx.globalAlpha = 0.35;
@@ -910,28 +907,41 @@ export function drawBlockedTiles(ctx) {
 
       let blocked = false;
 
-      // Tile-based blocking
+      // --- TILE-based blocking ---
       const tile = getTile(tx, ty);
       if (SOLID_TILES.includes(tile)) {
         blocked = true;
       }
 
-      // Object-based blocking
+      // --- OBJECT-based blocking ---
       if (!blocked) {
         for (const obj of objects) {
           if (!obj.blocksMovement) continue;
 
-          const left   = Math.floor(obj.x / TILE_SIZE);
-          const top    = Math.floor(obj.y / TILE_SIZE);
-          const right  = Math.floor((obj.x + obj.width) / TILE_SIZE);
-          const bottom = Math.floor((obj.y + obj.height) / TILE_SIZE);
+          const box = obj.getCollisionBox?.();
+          if (!box) continue;
 
-          if (tx >= left && tx <= right && ty >= top && ty <= bottom) {
-            blocked = true;
-            break;
+          if (obj.getCollisionBox) {
+            const box = obj.getCollisionBox();
+
+            const left   = Math.floor(box.x / TILE_SIZE);
+            const top    = Math.floor(box.y / TILE_SIZE);
+            const right  = Math.floor((box.x + box.width) / TILE_SIZE);
+            const bottom = Math.floor((box.y + box.height) / TILE_SIZE);
+
+            if (tx >= left && tx <= right && ty >= top && ty <= bottom) {
+              blocked = true;
+            }
+          
+
+            if (tx >= left && tx <= right && ty >= top && ty <= bottom) {
+              blocked = true;
+              break;
+            }
           }
         }
       }
+
 
       if (blocked) {
         ctx.fillRect(
@@ -947,9 +957,6 @@ export function drawBlockedTiles(ctx) {
   ctx.restore();
 }
 
-
-
-
 function drawEntitiesSorted() {
   const renderables = [];
 
@@ -960,6 +967,7 @@ function drawEntitiesSorted() {
 
   // Rocks
   for (const obj of objects) {
+    if (!Number.isFinite(obj.width) || !Number.isFinite(obj.height)) continue;
     renderables.push(obj);
   }
 
@@ -990,7 +998,6 @@ function drawEntitiesSorted() {
   }
 }
 
-
 function render(ctx) {
   // Clear screen
   ctx.fillStyle = BACKGROUND_COLOR;
@@ -1020,7 +1027,7 @@ function render(ctx) {
 
   // --- Entities ---
   drawEntitiesSorted();
-  drawBlockedTiles();
+  drawBlockedTiles(ctx);
   drawSwiftStepParticles(ctx, deltaTime);
 
   // --- Ruins ---
