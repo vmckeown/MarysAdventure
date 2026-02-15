@@ -250,24 +250,27 @@ export function setupWorld() {
   activeWorld = worldMap;
 }
 
-export function isTileBlockedByObject(tx, ty) {
-  const tileWorldX = tx * TILE_SIZE;
-  const tileWorldY = ty * TILE_SIZE;
+export function isTileBlockedByObject(tx, ty, objects = []) {
+  const tileBox = {
+    x: tx * TILE_SIZE,
+    y: ty * TILE_SIZE,
+    width: TILE_SIZE,
+    height: TILE_SIZE
+  };
 
   for (const obj of objects) {
     if (!obj || !obj.blocksMovement) continue;
 
-    const ox = obj.x;
-    const oy = obj.y;
-    const ow = obj.width;
-    const oh = obj.height;
+    // IMPORTANT: use collision box if available (tree trunk), otherwise fallback to bounds
+    const box = (typeof obj.getCollisionBox === "function")
+      ? obj.getCollisionBox()
+      : { x: obj.x, y: obj.y, width: obj.width, height: obj.height };
 
-    // AABB overlap (tile vs object)
     if (
-      tileWorldX + TILE_SIZE > ox &&
-      tileWorldX < ox + ow &&
-      tileWorldY + TILE_SIZE > oy &&
-      tileWorldY < oy + oh
+      tileBox.x < box.x + box.width &&
+      tileBox.x + tileBox.width > box.x &&
+      tileBox.y < box.y + box.height &&
+      tileBox.y + tileBox.height > box.y
     ) {
       return true;
     }

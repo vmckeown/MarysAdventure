@@ -24,7 +24,7 @@ import { items, Item } from "./items.js";
 import { startDialogue, closeDialogue, isDialogueActive } from "./dialogue.js";
 import { completeStep } from "./quests.js";
 import { gainSkillXp } from "./skills.js";
-import { triggerScreenShake } from "./main.js";
+import { objects, triggerScreenShake } from "./main.js";
 
 export const enemies = [];
 
@@ -387,9 +387,11 @@ export class Enemy {
       case ENEMY_STATE.PATROL: {
         if (!this.path || this.pathIndex >= this.path.length) {
           const start = { x: worldToTile(this.x), y: worldToTile(this.y) };
-          const targetTile = findRandomWalkableTileNearTile(this.x, this.y, 6);
 
-          this.path = findPath(start, targetTile);
+          const targetWorld = findRandomWalkableTileNear(this.x, this.y, 6);
+          const targetTile  = { x: worldToTile(targetWorld.x), y: worldToTile(targetWorld.y) };
+
+          this.path = findPath(start, targetTile, objects);
           this.pathIndex = 0;
 
           if (!this.path || this.path.length === 0) {
@@ -492,7 +494,8 @@ export class Enemy {
           goal.y = Math.max(0, Math.min(WORLD_ROWS - 1, goal.y));
 
           if (!this.lastGoal || goal.x !== this.lastGoal.x || goal.y !== this.lastGoal.y) {
-            const newPath = findPath(start, goal);
+            const newPath = findPath(start, goal, objects);
+            console.log("[PATH]", this.type, this.state, "len:", this.path?.length, "objects:", objects?.length);
             this.path = newPath?.length ? newPath : null;
             this.pathIndex = 0;
             this.lastGoal = goal;
@@ -545,7 +548,7 @@ export class Enemy {
           goal.x = Math.max(0, Math.min(WORLD_COLS - 1, goal.x));
           goal.y = Math.max(0, Math.min(WORLD_ROWS - 1, goal.y));
 
-          this.searchPath = findPath(start, goal);
+          this.searchPath = findPath(start, goal, objects);
           this.searchPathIndex = 0;
         }
 
