@@ -125,13 +125,13 @@ function spawnTreeArea({ xMin, xMax, yMin, yMax, count, type, minSpacing = 24 })
   const placed = [];
 
   let attempts = 0;
-  const MAX_ATTEMPTS = 1// count * 10;
+  const MAX_ATTEMPTS = count * 10;
 
   while (placed.length < count && attempts < MAX_ATTEMPTS) {
     attempts++;
 
-    const x = 200 /*Math.random() * (xMax - xMin) + xMin;*/
-    const y = 1400 /*Math.random() * (yMax - yMin) + yMin;*/
+    const x = Math.random() * (xMax - xMin) + xMin;
+    const y = Math.random() * (yMax - yMin) + yMin;
 
     // Prevent clumping
     let tooClose = false;
@@ -147,15 +147,7 @@ function spawnTreeArea({ xMin, xMax, yMin, yMax, count, type, minSpacing = 24 })
     if (tooClose) continue;
 
     const tree = new Tree(x, y, TREE_TYPES[randomTreeType()]);
-
-    console.log("[TREE CREATED]", {
-      x: tree.x,
-      y: tree.y,
-      width: tree.width,
-      height: tree.height,
-      blocksMovement: tree.blocksMovement
-    });
-
+    
     placed.push(tree);
   }
 
@@ -179,7 +171,7 @@ export const trees = [
     type: "PineTree1"
   }),
 
- /* ...spawnTreeArea({
+  ...spawnTreeArea({
     xMin: 750,
     xMax: 1300,
     yMin: 0,
@@ -223,7 +215,7 @@ export const trees = [
     yMax: 1500,
     count: 100,
     type: "PineTree1"
-  }), */
+  }), 
 
 ];
 
@@ -890,73 +882,6 @@ function updateCamera(dt) {
   );
 }
 
-// ===== Input Helper for Single Key Press Detection =====
-let previousKeys = {};
-export function drawBlockedTiles(ctx) {
-  if (!ctx) {
-    console.warn("drawBlockedTiles called without ctx");
-    return;
-  }
-
-  ctx.save();
-  ctx.globalAlpha = 0.35;
-  ctx.fillStyle = "red";
-
-  for (let ty = 0; ty < WORLD_ROWS; ty++) {
-    for (let tx = 0; tx < WORLD_COLS; tx++) {
-
-      let blocked = false;
-
-      // --- TILE-based blocking ---
-      const tile = getTile(tx, ty);
-      if (SOLID_TILES.includes(tile)) {
-        blocked = true;
-      }
-
-      // --- OBJECT-based blocking ---
-      if (!blocked) {
-        for (const obj of objects) {
-          if (!obj.blocksMovement) continue;
-
-          const box = obj.getCollisionBox?.();
-          if (!box) continue;
-
-          if (obj.getCollisionBox) {
-            const box = obj.getCollisionBox();
-
-            const left   = Math.floor(box.x / TILE_SIZE);
-            const top    = Math.floor(box.y / TILE_SIZE);
-            const right  = Math.floor((box.x + box.width) / TILE_SIZE);
-            const bottom = Math.floor((box.y + box.height) / TILE_SIZE);
-
-            if (tx >= left && tx <= right && ty >= top && ty <= bottom) {
-              blocked = true;
-            }
-          
-
-            if (tx >= left && tx <= right && ty >= top && ty <= bottom) {
-              blocked = true;
-              break;
-            }
-          }
-        }
-      }
-
-
-      if (blocked) {
-        ctx.fillRect(
-          tx * TILE_SIZE,
-          ty * TILE_SIZE,
-          TILE_SIZE,
-          TILE_SIZE
-        );
-      }
-    }
-  }
-
-  ctx.restore();
-}
-
 function drawEntitiesSorted() {
   const renderables = [];
 
@@ -1027,7 +952,6 @@ function render(ctx) {
 
   // --- Entities ---
   drawEntitiesSorted();
-  drawBlockedTiles(ctx);
   drawSwiftStepParticles(ctx, deltaTime);
 
   // --- Ruins ---

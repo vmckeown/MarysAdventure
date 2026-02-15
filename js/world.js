@@ -289,7 +289,6 @@ export function isColliding(nextX, nextY, size, npcs = [], objects = []) {
     for (let tx = leftTile; tx <= rightTile; tx++) {
       const tile = getTile(tx, ty);
       if (tile !== null && SOLID_TILES.includes(tile)) {
-        console.log("[COLLISION] TILE", { tx, ty, tile });
         return true;
       }
     }
@@ -335,12 +334,12 @@ export function isColliding(nextX, nextY, size, npcs = [], objects = []) {
       playerBox.y + playerBox.height > box.y;
 
     if (hit) {
-      console.log("[COLLISION] OBJECT", {
+     /* console.log("[COLLISION] OBJECT", {
         objType: obj.constructor?.name || typeof obj,
         objPos: { x: obj.x, y: obj.y, w: obj.width, h: obj.height },
         boxUsed: box,
         playerBox
-      });
+      });*/
       return true;
     }
   }
