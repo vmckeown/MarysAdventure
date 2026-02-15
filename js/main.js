@@ -1113,6 +1113,7 @@ function render(ctx) {
   drawIceBolts(ctx);
 
   ctx.restore(); // END world space
+  drawCollisionDebug(ctx, camera, objects, player);
 
   // ============================
   // SCREEN SPACE (UI only)
@@ -1148,10 +1149,42 @@ function render(ctx) {
   }
 }
 
-function drawDebugBox(ctx, box, color = "red") {
-  ctx.strokeStyle = color;
-  ctx.strokeRect(box.x, box.y, box.width, box.height);
+export function drawCollisionDebug(ctx, camera, objects = [], player = null) {
+  if (!ctx) return;
+
+  // IMPORTANT: This assumes you are drawing the world with a camera transform.
+  // We will apply the SAME transform here.
+  ctx.save();
+
+  // If your camera is { x, y } in world coords:
+  if (camera && Number.isFinite(camera.x) && Number.isFinite(camera.y)) {
+    ctx.translate(-camera.x, -camera.y);
+  }
+
+  // --- Draw object collision boxes (cyan) ---
+  ctx.globalAlpha = 0.9;
+  ctx.strokeStyle = "cyan";
+  ctx.lineWidth = 2;
+
+  for (const obj of objects) {
+    if (!obj || !obj.getCollisionBox) continue;
+    const box = obj.getCollisionBox();
+    if (!box) continue;
+
+    ctx.strokeRect(box.x, box.y, box.width, box.height);
+  }
+
+  // --- Draw player collision box (lime) ---
+  if (player) {
+    const size = player.size ?? 32;
+    const half = size / 2;
+    ctx.strokeStyle = "lime";
+    ctx.strokeRect(player.x - half, player.y - half, size, size);
+  }
+
+  ctx.restore();
 }
+
 
 // ===== Draw Entities =====
 function drawEntities() {

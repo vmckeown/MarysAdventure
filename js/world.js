@@ -288,29 +288,59 @@ export function isColliding(nextX, nextY, size, npcs = [], objects = []) {
   for (let ty = topTile; ty <= bottomTile; ty++) {
     for (let tx = leftTile; tx <= rightTile; tx++) {
       const tile = getTile(tx, ty);
-
       if (tile !== null && SOLID_TILES.includes(tile)) {
-         console.log("[COLLISION] Player blocked by TILE", { tx, ty, tile });
+        console.log("[COLLISION] TILE", { tx, ty, tile });
         return true;
       }
     }
   }
 
+  // Player AABB (world coords)
+  const playerBox = {
+    x: nextX - half,
+    y: nextY - half,
+    width: size,
+    height: size
+  };
+
+  // Helper: pick the correct AABB for each object
+  const getObjectBox = (obj) => {
+    if (!obj) return null;
+
+    // Prefer per-object collision boxes (Tree should use this)
+    if (typeof obj.getCollisionBox === "function") {
+      return obj.getCollisionBox();
+    }
+
+    // Fallback ONLY for objects that store top-left x/y + width/height
+    if (obj.blocksMovement && Number.isFinite(obj.x) && Number.isFinite(obj.y) &&
+        Number.isFinite(obj.width) && Number.isFinite(obj.height)) {
+      return { x: obj.x, y: obj.y, width: obj.width, height: obj.height };
+    }
+
+    return null;
+  };
+
+  // --- OBJECT COLLISION (unified; no double-checking) ---
   for (const obj of objects) {
-    if (!obj.blocksMovement) continue;
+    if (!obj || !obj.blocksMovement) continue;
+
+    const box = getObjectBox(obj);
+    if (!box) continue;
 
     const hit =
-      nextX + half > obj.x &&
-      nextX - half < obj.x + obj.width &&
-      nextY + half > obj.y &&
-      nextY - half < obj.y + obj.height;
+      playerBox.x < box.x + box.width &&
+      playerBox.x + playerBox.width > box.x &&
+      playerBox.y < box.y + box.height &&
+      playerBox.y + playerBox.height > box.y;
 
     if (hit) {
-    /*  console.log(
-        "[COLLISION] Player blocked by OBJECT",
-        obj.constructor.name,
-        obj
-      ); */
+      console.log("[COLLISION] OBJECT", {
+        objType: obj.constructor?.name || typeof obj,
+        objPos: { x: obj.x, y: obj.y, w: obj.width, h: obj.height },
+        boxUsed: box,
+        playerBox
+      });
       return true;
     }
   }
@@ -319,32 +349,12 @@ export function isColliding(nextX, nextY, size, npcs = [], objects = []) {
   for (const npc of npcs) {
     if (!npc || npc.isDead) continue;
     if (Math.abs(npc.x - nextX) < size && Math.abs(npc.y - nextY) < size) {
+      console.log("[COLLISION] NPC", { x: npc.x, y: npc.y });
       return true;
     }
   }
 
-  // --- OBJECT COLLISION ---
-  const playerBox = {
-    x: nextX - half,
-    y: nextY - half,
-    width: size,
-    height: size
-  };
-
-  for (const obj of objects) {
-    if (!obj.getCollisionBox) continue;
-
-    const box = obj.getCollisionBox();
-
-    if (
-      playerBox.x < box.x + box.width &&
-      playerBox.x + playerBox.width > box.x &&
-      playerBox.y < box.y + box.height &&
-      playerBox.y + playerBox.height > box.y
-    ) {
-      return true;
-    }
-  }
+  return false;
 }
 
 export function getTile(tx, ty) {
