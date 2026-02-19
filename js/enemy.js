@@ -99,39 +99,33 @@ function isClearSpawnArea(tx, ty, radius = 2, maxSolid = 2) {
 }
 
 // Returns a TILE COORD target {x, y}
-function findRandomWalkableTileNearTile(wx, wy, radius = 6) {
-  const originTx = worldToTile(wx);
-  const originTy = worldToTile(wy);
-
+function findRandomWalkableTileNearTile(originTx, originTy, radius = 6) {
   if (!Number.isFinite(originTx) || !Number.isFinite(originTy)) {
-    console.warn("Invalid origin passed to findRandomWalkableTileNearTile", wx, wy);
-    return {
-      x: Math.max(0, Math.min(WORLD_COLS - 1, Math.floor(wx / TILE_SIZE))),
-      y: Math.max(0, Math.min(WORLD_ROWS - 1, Math.floor(wy / TILE_SIZE)))
-    };
+    console.warn("Invalid origin passed to findRandomWalkableTileNearTile", originTx, originTy);
+    return { x: 0, y: 0 };
   }
 
   for (let i = 0; i < 25; i++) {
-    const tileX = originTx + Math.floor((Math.random() * 2 - 1) * radius);
-    const tileY = originTy + Math.floor((Math.random() * 2 - 1) * radius);
+    const tileX = originTx + (Math.floor(Math.random() * (radius * 2 + 1)) - radius);
+    const tileY = originTy + (Math.floor(Math.random() * (radius * 2 + 1)) - radius);
 
-    if (
-      tileX < 0 ||
-      tileY < 0 ||
-      tileX >= WORLD_COLS ||
-      tileY >= WORLD_ROWS
-    ) continue;
+    // Bounds check
+    if (tileX < 0 || tileY < 0 || tileX >= WORLD_COLS || tileY >= WORLD_ROWS) continue;
 
+    // Solid tile check
     if (isTileSolid(tileX, tileY)) continue;
 
-    if (!isClearSpawnArea(tileX, tileY, 2, 2)) continue;
-
-    return { x: tileX, y: tileY };
+    // “area is clear” check (tile coords)
+    if (isClearSpawnArea(tileX, tileY, 2, 2)) {
+      return { x: tileX, y: tileY };
+    }
   }
 
-  // fallback: origin tile
+  // Fallback: stay where you are
   return { x: originTx, y: originTy };
 }
+
+
 
 const ENEMY_ARCHETYPES = {
   brute: {
@@ -269,8 +263,7 @@ export class Enemy {
     startDialogue([randomGoblinTaunt("death")], { x: 0, y: 0 }, true);
     return this.die(player);
   }
-
-  if (isDialogueActive()) return 0;
+    const dialogueOpen = isDialogueActive();
 
     this.tauntCooldown = Math.max(0, this.tauntCooldown - dt);
 
@@ -336,7 +329,9 @@ export class Enemy {
 
       // taunt on first spot (but don't spam)
       if (this.tauntCooldown <= 0 && !this.hasTaunted) {
-        startDialogue([randomGoblinTaunt("spotted")], { x: 0, y: 0 });
+        if (!dialogueOpen) {
+          startDialogue([randomGoblinTaunt("spotted")], { x: 0, y: 0 });
+        }
         this.hasTaunted = true;
         this.tauntCooldown = 4;
       }
@@ -388,10 +383,11 @@ export class Enemy {
         if (!this.path || this.pathIndex >= this.path.length) {
           const start = { x: worldToTile(this.x), y: worldToTile(this.y) };
 
-          const targetWorld = findRandomWalkableTileNear(this.x, this.y, 6);
-          const targetTile  = { x: worldToTile(targetWorld.x), y: worldToTile(targetWorld.y) };
+          // ✅ NOTE: target is TILE coords now
+          const targetTile = findRandomWalkableTileNearTile(start.x, start.y, 6);
 
-          this.path = findPath(start, targetTile, objects);
+          // ✅ IMPORTANT: remove the comma bug (this was breaking your path!)
+          this.path = findPath(start, targetTile);
           this.pathIndex = 0;
 
           if (!this.path || this.path.length === 0) {
@@ -582,7 +578,9 @@ export class Enemy {
     // DEATH CHECK
     if (this.health <= 0 && !this.hasPlayedDeathDialogue) {
       this.hasPlayedDeathDialogue = true;
-      startDialogue([randomGoblinTaunt("death")], { x: 0, y: 0 }, true);
+      if (!dialogueOpen) {
+        startDialogue([randomGoblinTaunt("death")], { x: 0, y: 0 }, true);
+      }
       return this.die(player);
     }
 
@@ -670,20 +668,22 @@ export class Enemy {
     }
   }
 
-  damage(amount, sourceX, sourceY, player) {
+  damage(amount, sourceX, sourceY) {
     this.health -= amount;
 
     triggerScreenShake(2, 0.06);
-    startDialogue([randomGoblinTaunt("hit")], { x: 0, y: 0 }, true);
+
+    // ✅ Only show a "hit" taunt if dialogue isn't already open (prevents spam)
+    if (this.tauntCooldown <= 0 && !isDialogueActive()) {
+      startDialogue([randomGoblinTaunt("hit")], { x: 0, y: 0 }, true);
+      this.tauntCooldown = 0.8;
+    }
+
     gainSkillXp("melee", 1);
 
     this.showHealthBarTimer = this.healthBarDuration;
 
-    // If caller didn't pass source coords, use player coords if provided
-    if (!Number.isFinite(sourceX) && player) sourceX = player.x;
-    if (!Number.isFinite(sourceY) && player) sourceY = player.y;
-
-    // Absolute fallback: no knockback source (don’t crash)
+    // ✅ Never rely on a global `player` here
     if (!Number.isFinite(sourceX)) sourceX = this.x;
     if (!Number.isFinite(sourceY)) sourceY = this.y;
 

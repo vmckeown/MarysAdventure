@@ -41,7 +41,7 @@ let fadeDirection = 0;
 let isTransitioning = false;
 let pendingMapChange = null;
 let justTransitioned = false;
-
+const QUEST_FLASH_DURATION = 1.25;
 
 
 setQuestUpdateHandler((quest) => {
@@ -783,7 +783,7 @@ function handleAttack(dt) {
           );
 
           if (angleDiff < Math.PI / 4) {
-            enemy.damage(1);
+            enemy.damage(1, player.x, player.y);
             hitSomething = true;
           }
         }
