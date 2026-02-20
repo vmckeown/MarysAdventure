@@ -656,7 +656,7 @@ function update(dt) {
 
   // ---- UPDATE SYSTEMS ----
   player.update(dt);
-  updateEnemies(dt, player);
+  updateEnemies(dt, player, objects);
   updateXPOrbs(dt);
   updateItemPickup(player);
   updateCamera(dt);

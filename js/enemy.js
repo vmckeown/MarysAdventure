@@ -255,7 +255,7 @@ export class Enemy {
     this.target = null;
   }
 
-  update(dt, player) {
+  update(dt, player, objects = []) {
   if (!this.enabled) return 0;
 
   if (this.health <= 0 && !this.hasPlayedDeathDialogue) {
@@ -387,7 +387,7 @@ export class Enemy {
           const targetTile = findRandomWalkableTileNearTile(start.x, start.y, 6);
 
           // ✅ IMPORTANT: remove the comma bug (this was breaking your path!)
-          this.path = findPath(start, targetTile);
+          this.path = findPath(start, targetTile, objects);
           this.pathIndex = 0;
 
           if (!this.path || this.path.length === 0) {
@@ -833,11 +833,11 @@ export function spawnEnemy(tileX, tileY, type) {
 }
 
 // IMPORTANT: pass player in explicitly now
-export function updateEnemies(dt, player) {
+export function updateEnemies(dt, player, objects = []) {
   let xpGained = 0;
 
   for (const e of enemies) {
-    const xp = e.update(dt, player);
+    const xp = e.update(dt, player, objects);
     if (xp > 0) xpGained += xp;
   }
 

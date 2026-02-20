@@ -1,38 +1,33 @@
-import { getTile, SOLID_TILES, WORLD_COLS, WORLD_ROWS, isTileBlockedByObject } from "./world.js";
+// ===== PATHFINDING (A*) =====
+import { getTile, SOLID_TILES, WORLD_COLS, WORLD_ROWS } from "./world.js";
 
 // ===== PATHFINDING (A*) =====
-// IMPORTANT: pass `objects` in from enemy/main — do NOT import objects from main.js
 export function findPath(start, goal, objects = []) {
   if (!start || !goal) return [];
 
-  // start/goal must be walkable
-  if (
-    isTileSolid(start.x, start.y) ||
-    isTileSolid(goal.x, goal.y) ||
-    isTileBlockedByObject(start.x, start.y, objects) ||
-    isTileBlockedByObject(goal.x, goal.y, objects)
-  ) {
+  // reject invalid endpoints
+  if (isBlocked(start.x, start.y, objects) || isBlocked(goal.x, goal.y, objects)) {
     return [];
   }
 
+  const key = (p) => `${p.x},${p.y}`;
+  const h = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
   const openSet = [start];
   const cameFrom = new Map();
+
   const gScore = new Map();
   const fScore = new Map();
   const closedSet = new Set();
-
-  const key = (p) => `${p.x},${p.y}`;
-  const h = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y); // Manhattan
 
   gScore.set(key(start), 0);
   fScore.set(key(start), h(start, goal));
 
   let loopCount = 0;
-  const LOOP_LIMIT = 4000;
 
   while (openSet.length > 0) {
     loopCount++;
-    if (loopCount > LOOP_LIMIT) {
+    if (loopCount > 4000) {
       console.warn("⚠️ Pathfinding aborted — too many iterations");
       return [];
     }
@@ -48,32 +43,19 @@ export function findPath(start, goal, objects = []) {
       return reconstructPath(cameFrom, current);
     }
 
-    for (const neighbor of getNeighbors(current)) {
+    for (const neighbor of getNeighbors(current, objects)) {
       const nKey = key(neighbor);
-
-      // bounds
-      if (
-        neighbor.x < 0 ||
-        neighbor.y < 0 ||
-        neighbor.x >= WORLD_COLS ||
-        neighbor.y >= WORLD_ROWS
-      ) continue;
-
-      // blocked?
-      if (
-        isTileSolid(neighbor.x, neighbor.y) ||
-        isTileBlockedByObject(neighbor.x, neighbor.y, objects)
-      ) continue;
-
       if (closedSet.has(nKey)) continue;
 
-      const tentativeG = (gScore.get(currKey) ?? Infinity) + 1;
+      const stepCost = (neighbor.x !== current.x && neighbor.y !== current.y) ? 1.414 : 1;
+      const tentativeG = (gScore.get(currKey) ?? Infinity) + stepCost;
+
       if (tentativeG < (gScore.get(nKey) ?? Infinity)) {
         cameFrom.set(nKey, current);
         gScore.set(nKey, tentativeG);
         fScore.set(nKey, tentativeG + h(neighbor, goal));
 
-        if (!openSet.some((p) => p.x === neighbor.x && p.y === neighbor.y)) {
+        if (!openSet.some(p => p.x === neighbor.x && p.y === neighbor.y)) {
           openSet.push(neighbor);
         }
       }
@@ -84,21 +66,76 @@ export function findPath(start, goal, objects = []) {
 }
 
 function reconstructPath(cameFrom, current) {
-  const path = [current];
+  const totalPath = [current];
   while (cameFrom.has(`${current.x},${current.y}`)) {
     current = cameFrom.get(`${current.x},${current.y}`);
-    path.unshift(current);
+    totalPath.unshift(current);
   }
-  return path;
+  return totalPath;
 }
 
-function getNeighbors(tile) {
-  return [
-    { x: tile.x + 1, y: tile.y },
-    { x: tile.x - 1, y: tile.y },
-    { x: tile.x, y: tile.y + 1 },
-    { x: tile.x, y: tile.y - 1 },
+// ✅ Diagonal neighbors with corner-cut prevention
+function getNeighbors(tile, objects) {
+  const dirs = [
+    { x:  1, y:  0, cost: 1 },
+    { x: -1, y:  0, cost: 1 },
+    { x:  0, y:  1, cost: 1 },
+    { x:  0, y: -1, cost: 1 },
+
+    // diagonals
+    { x:  1, y:  1, cost: 1.414 },
+    { x:  1, y: -1, cost: 1.414 },
+    { x: -1, y:  1, cost: 1.414 },
+    { x: -1, y: -1, cost: 1.414 },
   ];
+
+  const neighbors = [];
+
+  for (const d of dirs) {
+    const nx = tile.x + d.x;
+    const ny = tile.y + d.y;
+
+    if (nx < 0 || ny < 0 || nx >= WORLD_COLS || ny >= WORLD_ROWS) continue;
+    if (isBlocked(nx, ny, objects)) continue;
+
+    // corner cutting prevention for diagonals:
+    if (d.x !== 0 && d.y !== 0) {
+      const blockA = isBlocked(tile.x + d.x, tile.y, objects);
+      const blockB = isBlocked(tile.x, tile.y + d.y, objects);
+      if (blockA || blockB) continue;
+    }
+
+    neighbors.push({ x: nx, y: ny });
+  }
+
+  return neighbors;
+}
+
+function isBlocked(tx, ty, objects = []) {
+  const tile = getTile(tx, ty);
+  if (tile !== null && SOLID_TILES.includes(tile)) return true;
+
+  // object blocking: treat objects with blocksMovement as solid tiles they overlap
+  for (const obj of objects) {
+    if (!obj || !obj.blocksMovement) continue;
+
+    // Prefer collision box if available (tree trunk)
+    const box = obj.getCollisionBox ? obj.getCollisionBox() : {
+      x: obj.x,
+      y: obj.y,
+      width: obj.width ?? 0,
+      height: obj.height ?? 0
+    };
+
+    const left   = Math.floor(box.x / 32);
+    const top    = Math.floor(box.y / 32);
+    const right  = Math.floor((box.x + box.width  - 1) / 32);
+    const bottom = Math.floor((box.y + box.height - 1) / 32);
+
+    if (tx >= left && tx <= right && ty >= top && ty <= bottom) return true;
+  }
+
+  return false;
 }
 
 export function isTileSolid(tx, ty) {
